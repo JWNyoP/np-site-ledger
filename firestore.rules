@@ -1,0 +1,48 @@
+rules_version = '2';
+// NP DESIGN 현장 현황 — Firestore 보안 규칙 (최종)
+// Firebase 콘솔 → Firestore → 규칙 탭에 붙여넣고 "게시"
+// 메인 관리자 이메일은 index.html 의 OWNER_EMAIL 과 같아야 함
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner() {
+      return signedIn()
+        && request.auth.token.email == 'ddong020412@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    function memberPath() { return /databases/$(database)/documents/members/$(request.auth.uid); }
+    function role() { return get(memberPath()).data.role; }
+    function isMember() { return signedIn() && exists(memberPath()); }
+    function isAdmin() { return isOwner() || (isMember() && role() == 'admin'); }
+    function isActive() { return isAdmin() || (isMember() && role() == 'staff'); }
+
+    // 앱 공용 데이터 (현장·기록·가린 근로자 정보): 승인된 사용자만
+    match /kv/{docId} {
+      allow read, write: if isActive();
+    }
+
+    // 사용자 목록: 본인 것은 읽기, 가입 요청은 본인이 'pending'으로만, 승인·권한·삭제는 관리자만
+    match /members/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.email == request.auth.token.email
+        && (request.resource.data.role == 'pending' || isOwner());
+      allow update, delete: if isAdmin();
+    }
+
+    // 근로자 개인정보 전체: 관리자만 읽기/수정, 승인된 사용자는 새로 등록(create)만
+    match /workerPrivate/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isActive();
+    }
+    match /statementPrivate/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isActive();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
