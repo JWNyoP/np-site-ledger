@@ -1570,7 +1570,8 @@ function renderManage(){
     t.className = 'tag' + (s.archived ? ' archived':'');
     t.innerHTML = `<span>${escapeHtml(s.name)}</span>
       <button class="tax-toggle ${s.taxInvoice?'on':'off'}" onclick="toggleSiteTax('${s.id}')">${s.taxInvoice?'계산서':'미발행'}</button>
-      <button class="done-btn" onclick="toggleArchiveSite('${s.id}')">${s.archived ? '되돌리기' : '끝남'}</button>`;
+      <button class="done-btn" onclick="toggleArchiveSite('${s.id}')">${s.archived ? '되돌리기' : '끝남'}</button>
+      ${isAdmin() ? `<button class="rm-x" title="현장 삭제" onclick="deleteSite('${s.id}')">✕</button>` : ''}`;
     return t;
   };
   data.sites.filter(s=>!s.archived).forEach(s => siteTags.appendChild(siteTag(s)));
@@ -1775,6 +1776,39 @@ function addSite(){
     renderLaborSiteChips();
   });
 }
+/* 현장 삭제 (관리자): 잘못 만든 현장 정리용
+   - 기록이 없으면 확인 후 바로 삭제
+   - 수입/지출 기록이 있으면 건수를 보여주고 한 번 더 확인 → 기록까지 함께 삭제
+   - 노무비 명세서가 있으면 삭제 불가 (원천징수 자료라 보관 필요) → '끝남'으로 정리 안내 */
+function deleteSite(id){
+  if(!isAdmin()) return;
+  const s = data.sites.find(x=>x.id===id);
+  if(!s) return;
+  const txns = data.transactions.filter(t=>t.siteId===id);
+  const stmts = data.laborStatements.filter(st=>st.siteId===id);
+  if(stmts.length){
+    showAlert(`"${s.name}" 현장에는 노무비 명세서 ${stmts.length}건이 있어서 삭제할 수 없어요.\n원천징수 자료라 보관이 필요해요.\n대신 '끝남'을 눌러 정리해주세요.`);
+    return;
+  }
+  const remove = async () => {
+    data.sites = data.sites.filter(x=>x.id!==id);
+    data.transactions = data.transactions.filter(t=>t.siteId!==id);
+    if(state.siteId === id) state.siteId = null;
+    if(laborState.siteId === id) laborState.siteId = null;
+    if(ledgerState.siteId === id) ledgerState.siteId = 'all';
+    await persist();
+    renderAll();
+  };
+  if(txns.length === 0){
+    showConfirm(`"${s.name}" 현장을 삭제할까요?\n(기록이 없는 현장이에요)`, remove);
+    return;
+  }
+  const sum = txns.reduce((a,t)=>a+t.amount,0);
+  showConfirm(`"${s.name}" 현장에 기록 ${txns.length}건(합계 ${fmt(sum)})이 있어요.\n삭제하면 이 기록들도 함께 지워지고 되돌릴 수 없어요.\n\n끝난 현장이라면 '끝남'을 눌러 정리하는 걸 추천해요.\n그래도 삭제할까요?`, () => {
+    showConfirm(`정말 "${s.name}" 현장과 기록 ${txns.length}건을 모두 삭제할까요?`, remove);
+  });
+}
+
 function toggleArchiveSite(id){
   const s = data.sites.find(x=>x.id===id);
   if(!s) return;
