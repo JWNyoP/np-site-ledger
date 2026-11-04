@@ -164,7 +164,14 @@
   .tag-list{display:flex; flex-wrap:wrap; gap:8px;}
   .tag-list .tag{display:flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--line); border-radius:999px; padding:7px 8px 7px 13px; font-size:12.5px;}
   .tag-list .tag button.rm-x{background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; padding:0 4px;}
-  .tag-list .tag.archived{opacity:0.45; text-decoration:line-through;}
+  .tag-list .tag.archived{opacity:0.55;}
+  .tag-list .tag.archived > span{text-decoration:line-through;}
+  .tag-list .tag .done-btn{font-size:10.5px; padding:2px 8px; border-radius:5px; border:1px solid var(--line); background:none; color:var(--text-muted); cursor:pointer; font-family:var(--sans);}
+  .done-toggle{display:block; width:100%; margin:4px 0 12px; padding:11px; background:none; border:1px dashed var(--line); border-radius:var(--radius); color:var(--text-muted); font-size:12.5px; font-weight:600; cursor:pointer; font-family:var(--sans);}
+  .done-toggle.small{width:100%; margin:4px 0 0; padding:8px; border-radius:10px; font-size:12px;}
+  .site-card.done{opacity:0.6;}
+  .evid-auto{font-size:12px; color:var(--text-muted); background:var(--surface-2); border-radius:10px; padding:10px 12px;}
+  .evid-auto b{color:var(--violet);}
   .tag-list .tag .tax-toggle{font-family:var(--mono); font-size:9px; padding:2px 7px; border-radius:5px; border:none; cursor:pointer;}
   .tag-list .tag .tax-toggle.on{background:var(--violet-dim); color:var(--violet);}
   .tag-list .tag .tax-toggle.off{background:var(--surface-3); color:var(--text-muted);}
@@ -602,6 +609,7 @@ let currentUser = null; // {id(구글 uid), name, role, email}
 let state = { type:'expense', siteId:null, method:null, category:null, evidence:null };
 let laborState = { siteId:null, workerId:null };
 let ledgerState = { siteId: 'all' };
+let uiState = { showDoneSites: false, showDoneSitesManage: false }; // 화면 펼침 상태만 (저장 안 함)
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function fmt(n){ return '₩' + Math.round(n).toLocaleString('ko-KR'); }
@@ -823,7 +831,7 @@ function setType(t){
   document.getElementById('categoryLabel').textContent = t==='expense' ? '항목' : '항목 (수입)';
   document.getElementById('evidenceBlock').style.display = t==='expense' ? 'block' : 'none';
   state.category = null;
-  state.evidence = null;
+  state.evidence = (t === 'expense' && isCardMethod(state.method)) ? CARD_EVIDENCE : null;
   renderCategoryChips();
   renderEvidenceChips();
   updateSaveState();
@@ -863,10 +871,27 @@ function renderMethodChips(){
     const c = document.createElement('div');
     c.className = 'chip' + (state.method===m ? ' active':'');
     c.textContent = m;
-    c.onclick = () => { state.method = m; renderMethodChips(); updateSaveState(); };
+    c.onclick = () => {
+      state.method = m;
+      // 결제수단이 바뀌면 증빙을 다시 고르게 함 (카드는 자동 지정)
+      state.evidence = isCardMethod(m) ? CARD_EVIDENCE : null;
+      renderMethodChips(); renderEvidenceChips(); updateSaveState();
+    };
     wrap.appendChild(c);
   });
 }
+
+/* 증빙: 카드는 카드매출전표로 자동, 네이버페이는 현금영수증(지출증빙) 선택 가능 */
+const CARD_EVIDENCE = '카드매출전표';
+const CASH_RECEIPT_EVIDENCE = '현금영수증(지출증빙)';
+function isCardMethod(m){ return /카드/.test(m || ''); }
+function evidenceOptions(m){
+  if(isCardMethod(m)) return [];
+  if(/네이버/.test(m || '')) return ['계산서발행', CASH_RECEIPT_EVIDENCE, '현금(미발행)'];
+  return ['계산서발행','현금(미발행)'];
+}
+// 매입세액공제를 받을 수 있는 증빙 (최종 판단은 세무사 확인)
+function isDeductibleEvidence(ev){ return ev === '계산서발행' || ev === CARD_EVIDENCE || ev === CASH_RECEIPT_EVIDENCE; }
 
 function renderCategoryChips(){
   const wrap = document.getElementById('categoryChips');
@@ -886,7 +911,14 @@ function renderEvidenceChips(){
   const wrap = document.getElementById('evidenceChips');
   wrap.innerHTML = '';
   if(state.type !== 'expense') return;
-  ['계산서발행','현금(미발행)'].forEach(ev=>{
+  if(isCardMethod(state.method)){
+    state.evidence = CARD_EVIDENCE;
+    wrap.innerHTML = '<div class="evid-auto">카드 결제는 <b>카드매출전표</b>로 자동 증빙돼요</div>';
+    return;
+  }
+  const opts = evidenceOptions(state.method);
+  if(state.evidence && !opts.includes(state.evidence)) state.evidence = null;
+  opts.forEach(ev=>{
     const c = document.createElement('div');
     c.className = 'chip evidence' + (state.evidence===ev ? ' active':'');
     c.textContent = ev;
@@ -935,7 +967,7 @@ async function saveTransaction(){
 }
 
 function siteName(id){ const s = data.sites.find(x=>x.id===id); return s ? s.name : '(삭제된 현장)'; }
-function evidenceClass(ev){ if(ev==='계산서발행') return 'tax'; if(ev && ev.indexOf('원천징수')>=0) return 'wh'; return 'cash'; }
+function evidenceClass(ev){ if(isDeductibleEvidence(ev)) return 'tax'; if(ev && ev.indexOf('원천징수')>=0) return 'wh'; return 'cash'; }
 
 function renderTodayList(){
   const today = todayStr();
@@ -974,7 +1006,7 @@ function computeSiteStats(siteId){
   const expense = txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const profit = income - expense;
   const margin = income > 0 ? (profit/income*100) : (expense>0 ? -100 : 0);
-  const deductibleExpense = txns.filter(t=>t.type==='expense' && t.evidence==='계산서발행').reduce((s,t)=>s+t.amount,0);
+  const deductibleExpense = txns.filter(t=>t.type==='expense' && isDeductibleEvidence(t.evidence)).reduce((s,t)=>s+t.amount,0);
   return { income, expense, profit, margin, txns, deductibleExpense };
 }
 
@@ -996,6 +1028,30 @@ function renderSites(){
     const st = computeSiteStats(s.id);
     totalProfit += st.profit;
     if(st.income>0){ marginSum += st.margin; marginCount++; }
+    cards.appendChild(buildSiteCard(s, st));
+  });
+
+  // 끝난 현장: 버튼을 눌러야 보임 (합계에는 진행 중인 현장만 포함)
+  const doneSites = data.sites.filter(s=>s.archived);
+  if(doneSites.length){
+    const btn = document.createElement('button');
+    btn.className = 'done-toggle';
+    btn.textContent = uiState.showDoneSites ? `끝난 현장 숨기기 ▴` : `끝난 현장 ${doneSites.length}개 보기 ▾`;
+    btn.onclick = () => { uiState.showDoneSites = !uiState.showDoneSites; renderSites(); };
+    cards.appendChild(btn);
+    if(uiState.showDoneSites){
+      doneSites.forEach(s => {
+        const card = buildSiteCard(s, computeSiteStats(s.id));
+        card.classList.add('done');
+        cards.appendChild(card);
+      });
+    }
+  }
+  document.getElementById('sumProfit').textContent = fmt(totalProfit);
+  document.getElementById('sumMargin').textContent = (marginCount ? (marginSum/marginCount) : 0).toFixed(1) + '%';
+}
+
+function buildSiteCard(s, st){
     const pct = Math.max(0, Math.min(100, st.income>0 ? (st.expense/st.income*100) : (st.expense>0?100:0)));
     const marginClass = st.income===0 && st.expense===0 ? 'flat' : (st.margin>=0 ? 'pos':'neg');
 
@@ -1019,6 +1075,7 @@ function renderSites(){
         <div class="name-wrap">
           <div class="name">${s.name}</div>
           <div class="tax-pill ${s.taxInvoice?'on':'off'}">${s.taxInvoice?'계산서발행':'미발행'}</div>
+          ${s.archived ? '<div class="tax-pill off">완료</div>' : ''}
         </div>
         <div class="margin-tag ${marginClass}">${st.income===0 && st.expense===0 ? '기록없음' : (st.margin>=0?'+':'') + st.margin.toFixed(1)+'%'}</div>
       </div>
@@ -1050,10 +1107,7 @@ function renderSites(){
         `).join('') : '<div class="empty">내역 없음</div>';
       }
     };
-    cards.appendChild(card);
-  });
-  document.getElementById('sumProfit').textContent = fmt(totalProfit);
-  document.getElementById('sumMargin').textContent = (marginCount ? (marginSum/marginCount) : 0).toFixed(1) + '%';
+    return card;
 }
 
 /* ---------- labor / 노무비지급명세서 ---------- */
@@ -1511,14 +1565,24 @@ function renderManage(){
 
   const siteTags = document.getElementById('siteTags');
   siteTags.innerHTML = '';
-  data.sites.forEach(s=>{
+  const siteTag = s => {
     const t = document.createElement('div');
     t.className = 'tag' + (s.archived ? ' archived':'');
-    t.innerHTML = `<span>${s.name}</span>
+    t.innerHTML = `<span>${escapeHtml(s.name)}</span>
       <button class="tax-toggle ${s.taxInvoice?'on':'off'}" onclick="toggleSiteTax('${s.id}')">${s.taxInvoice?'계산서':'미발행'}</button>
-      <button class="rm-x" onclick="toggleArchiveSite('${s.id}')">${s.archived ? '↺' : '✕'}</button>`;
-    siteTags.appendChild(t);
-  });
+      <button class="done-btn" onclick="toggleArchiveSite('${s.id}')">${s.archived ? '되돌리기' : '끝남'}</button>`;
+    return t;
+  };
+  data.sites.filter(s=>!s.archived).forEach(s => siteTags.appendChild(siteTag(s)));
+  const done = data.sites.filter(s=>s.archived);
+  if(done.length){
+    const btn = document.createElement('button');
+    btn.className = 'done-toggle small';
+    btn.textContent = uiState.showDoneSitesManage ? '끝난 현장 숨기기 ▴' : `끝난 현장 ${done.length}개 보기 ▾`;
+    btn.onclick = () => { uiState.showDoneSitesManage = !uiState.showDoneSitesManage; renderManage(); };
+    siteTags.appendChild(btn);
+    if(uiState.showDoneSitesManage) done.forEach(s => siteTags.appendChild(siteTag(s)));
+  }
   const methodTags = document.getElementById('methodTags');
   methodTags.innerHTML = '';
   data.methods.forEach(m=>{
@@ -1711,9 +1775,20 @@ function addSite(){
     renderLaborSiteChips();
   });
 }
-async function toggleArchiveSite(id){
+function toggleArchiveSite(id){
   const s = data.sites.find(x=>x.id===id);
-  if(s){ s.archived = !s.archived; await persist(); renderManage(); renderSiteChips(); renderLaborSiteChips(); }
+  if(!s) return;
+  const apply = async () => {
+    s.archived = !s.archived;
+    if(s.archived){
+      if(state.siteId === s.id) state.siteId = null;
+      if(laborState.siteId === s.id) laborState.siteId = null;
+    }
+    await persist();
+    renderManage(); renderSiteChips(); renderLaborSiteChips(); renderSites(); updateSaveState();
+  };
+  if(s.archived) apply();
+  else showConfirm(`"${s.name}" 현장을 끝난 현장으로 정리할까요?\n기록 화면 선택지에서 빠지고, 현장현황에서는 '끝난 현장 보기'를 눌러야 보여요.\n기록은 그대로 남아요.`, apply);
 }
 async function addMethod(){
   const inp = document.getElementById('newMethodInput');
