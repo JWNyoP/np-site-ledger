@@ -172,6 +172,52 @@
   .site-card.done{opacity:0.6;}
   .evid-auto{font-size:12px; color:var(--text-muted); background:var(--surface-2); border-radius:10px; padding:10px 12px;}
   .evid-auto b{color:var(--violet);}
+  /* 운영·영업 (현장 외 지출) */
+  .chip.biz{border-color:rgba(79,168,148,0.35);}
+  .chip.biz.active{background:var(--income-dim); border-color:var(--income); color:var(--income);}
+  .memo-suggest{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .memo-suggest .ms{padding:5px 10px; font-size:11.5px; border-radius:999px; background:var(--surface-2); border:1px solid var(--line); color:var(--text-muted); cursor:pointer;}
+  .sec-title{font-size:12px; font-weight:800; color:var(--text-dim); letter-spacing:0.04em; margin:4px 2px 8px;}
+  .biz-row{display:flex; gap:10px; margin-bottom:12px;}
+  .biz-card{flex:1; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:13px 14px; cursor:pointer; min-width:0;}
+  .biz-card.open{border-color:var(--income);}
+  .biz-card .bname{font-weight:800; font-size:14px; display:flex; justify-content:space-between; align-items:center;}
+  .biz-card .bamt{font-family:var(--mono); font-size:16px; font-weight:800; color:var(--expense); margin-top:6px;}
+  .biz-card .bsub{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:3px;}
+  .delta.up{color:var(--expense);} .delta.down{color:var(--income);}
+  .biz-panel{background:var(--surface); border:1px solid var(--income); border-radius:var(--radius); padding:14px; margin-bottom:16px;}
+  .month-nav{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;}
+  .month-nav b{font-size:14px;}
+  .month-nav button{background:var(--surface-2); border:1px solid var(--line); color:var(--text); border-radius:8px; width:34px; height:30px; cursor:pointer; font-size:14px;}
+  .trend{display:flex; align-items:flex-end; gap:6px; height:110px; padding:0 2px; margin-bottom:6px;}
+  .trend .col{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; cursor:pointer;}
+  .trend .bar{width:100%; max-width:34px; background:var(--surface-3); border-radius:5px 5px 2px 2px; min-height:2px;}
+  .trend .col.sel .bar{background:var(--income);}
+  .trend .v{font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-bottom:3px; white-space:nowrap;}
+  .trend .m{font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .trend .col.sel .m{color:var(--text); font-weight:800;}
+  .grp{padding:9px 0; border-bottom:1px solid var(--line);}
+  .grp:last-child{border-bottom:none;}
+  .grp .gtop{display:flex; justify-content:space-between; gap:8px; font-size:13px;}
+  .grp .gtop .gname{font-weight:700; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .grp .gtop .gamt{font-family:var(--mono); font-weight:700; flex-shrink:0;}
+  .hbar{height:6px; border-radius:3px; background:var(--surface-3); margin-top:6px; overflow:hidden;}
+  .hbar > div{height:100%; background:var(--income); border-radius:3px;}
+  .grp .gcmp{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px;}
+  .panel-sub{font-size:12px; font-weight:800; color:var(--text-muted); margin:14px 0 4px;}
+  /* 현장 공정별 */
+  .proc-box{margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid var(--line);}
+  .proc-legend{display:flex; flex-wrap:wrap; gap:10px; font-size:10.5px; color:var(--text-dim); margin-bottom:4px;}
+  .proc-legend i{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:4px; vertical-align:middle;}
+  .sbar{display:flex; height:7px; border-radius:3px; background:var(--surface-3); margin-top:6px; overflow:hidden;}
+  .sbar > div{height:100%;}
+  .proc-cats{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 10px;}
+  .txn .edit{background:none; border:none; color:var(--amber); font-size:14px; cursor:pointer; padding:4px 2px;}
+  .txn .edited{font-size:10px; color:var(--text-dim); margin-top:2px;}
+  .modal-box{max-height:88vh; overflow-y:auto;}
+  .modal-box select{width:100%; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:11px 12px; color:var(--text); font-size:14px; outline:none; margin-bottom:12px; font-family:var(--sans);}
+  .modal-box .mlabel{font-size:11.5px; color:var(--text-dim); margin:0 0 5px; font-weight:700;}
+  .modal-box .mfixed{font-size:12.5px; color:var(--text-muted); background:var(--surface-2); border-radius:10px; padding:11px 12px; margin-bottom:12px;}
   .tag-list .tag .tax-toggle{font-family:var(--mono); font-size:9px; padding:2px 7px; border-radius:5px; border:none; cursor:pointer;}
   .tag-list .tag .tax-toggle.on{background:var(--violet-dim); color:var(--violet);}
   .tag-list .tag .tax-toggle.off{background:var(--surface-3); color:var(--text-muted);}
@@ -344,6 +390,9 @@
       <div class="field-label">현장</div>
       <div class="chip-row" id="siteChips"></div>
 
+      <div class="field-label">현장 외 지출 <span class="hint-sm">현장과 상관없는 회사 비용</span></div>
+      <div class="chip-row" id="bizChips"></div>
+
       <div class="field-label">결제수단</div>
       <div class="chip-row" id="methodChips"></div>
 
@@ -362,9 +411,10 @@
         </div>
         <div>
           <div class="field-label" style="margin-top:0;">메모 (선택)</div>
-          <input type="text" class="memo" id="memoInput" placeholder="예: 자재상 김사장">
+          <input type="text" class="memo" id="memoInput" lang="ko" inputmode="text" autocomplete="off" autocorrect="off" placeholder="예: 타일 자재">
         </div>
       </div>
+      <div class="memo-suggest" id="memoSuggest"></div>
 
       <button class="save-btn" id="saveBtn" onclick="saveTransaction()">기록 저장</button>
 
@@ -381,6 +431,7 @@
         <div class="stat"><div class="num" id="sumProfit">₩0</div><div class="lbl">총 수익</div></div>
         <div class="stat"><div class="num" id="sumMargin">0%</div><div class="lbl">평균 수익률</div></div>
       </div>
+      <div id="bizSection"></div>
       <div id="siteCards"></div>
     </section>
 
@@ -407,6 +458,10 @@
 
       <div class="field-label">현장</div>
       <div class="chip-row" id="laborSiteChips"></div>
+
+      <div class="field-label">공정 / 작업 내용 (선택) <span class="hint-sm">현장현황에서 공정별로 묶여요</span></div>
+      <input type="text" class="tf" id="laborWork" lang="ko" autocomplete="off" placeholder="예: 타일, 목공, 철거">
+      <div class="memo-suggest" id="laborWorkSuggest"></div>
 
       <div class="row-2" style="margin-top:18px;">
         <div>
@@ -609,7 +664,113 @@ let currentUser = null; // {id(구글 uid), name, role, email}
 let state = { type:'expense', siteId:null, method:null, category:null, evidence:null };
 let laborState = { siteId:null, workerId:null };
 let ledgerState = { siteId: 'all' };
-let uiState = { showDoneSites: false, showDoneSitesManage: false }; // 화면 펼침 상태만 (저장 안 함)
+let uiState = { showDoneSites: false, showDoneSitesManage: false, bizOpen: null, bizMonth: null }; // 화면 펼침 상태만 (저장 안 함)
+
+/* ---------- 운영·영업: 현장이 아닌 회사 지출 ----------
+   기존 sites 배열에 kind('ops'|'sales')가 붙은 항목으로 저장 → 거래 데이터 구조는 그대로 (siteId로 연결).
+   예전에 '운영'/'영업'이라는 이름으로 현장을 만들어 쓴 경우 그 현장을 그대로 운영·영업으로 전환(기록 유지). */
+const BIZ_DEFS = [
+  { kind: 'ops',   id: 'biz-ops',   name: '운영' },
+  { kind: 'sales', id: 'biz-sales', name: '영업' }
+];
+function ensureBizSites(){
+  BIZ_DEFS.forEach(def => {
+    if(data.sites.some(s => s.kind === def.kind)) return;
+    const old = data.sites.find(s => !s.kind && String(s.name).replace(/\s/g,'') === def.name);
+    if(old){ old.kind = def.kind; old.archived = false; return; }
+    data.sites.push({ id: def.id, name: def.name, kind: def.kind, archived: false, taxInvoice: false });
+  });
+}
+function projectSites(){ return data.sites.filter(s => !s.kind); }
+function bizSite(kind){ return data.sites.find(s => s.kind === kind); }
+function isBizId(id){ const s = data.sites.find(x => x.id === id); return !!(s && s.kind); }
+
+function monthKey(dateStr){ return String(dateStr || '').slice(0, 7); }
+function shiftMonth(ym, n){
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function monthLabel(ym, withYear){ const [y, m] = ym.split('-'); return (withYear ? y + '년 ' : '') + Number(m) + '월'; }
+function fmtShort(n){
+  n = Math.round(n);
+  if(Math.abs(n) >= 100000000) return (n / 100000000).toFixed(1).replace(/\.0$/, '') + '억';
+  if(Math.abs(n) >= 1000000) return Math.round(n / 10000).toLocaleString('ko-KR') + '만';
+  if(Math.abs(n) >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '만';
+  return n.toLocaleString('ko-KR');
+}
+
+/* 메모 묶기: 띄어쓰기·숫자·기호를 빼고, 짧은 메모가 긴 메모 안에 들어 있으면 같은 묶음
+   (예: '주유' ⊂ '주유비', 'GS주유') — 메모가 없으면 항목(category)으로 묶음 */
+function normMemo(m){ return String(m || '').toLowerCase().replace(/[0-9\s\-_.,·()\[\]\/~!@#$%^&*+=:;'"<>?]+/g, ''); }
+function buildMemoGroups(txns){
+  const byNorm = new Map();
+  txns.forEach(t => {
+    const n = normMemo(t.memo);
+    if(!n) return;
+    if(!byNorm.has(n)) byNorm.set(n, { count: 0, labels: {} });
+    const e = byNorm.get(n); e.count++;
+    const lb = String(t.memo).trim(); e.labels[lb] = (e.labels[lb] || 0) + 1;
+  });
+  const norms = [...byNorm.keys()].sort((a, b) => a.length - b.length || byNorm.get(b).count - byNorm.get(a).count);
+  const keys = []; const normToKey = {}; const labelOf = {};
+  norms.forEach(n => {
+    const hit = keys.filter(k => k.length >= 2 && n.includes(k)).sort((a, b) => b.length - a.length)[0];
+    if(hit){ normToKey[n] = hit; return; }
+    keys.push(n); normToKey[n] = n;
+    const lbs = byNorm.get(n).labels;
+    labelOf[n] = Object.keys(lbs).sort((a, b) => lbs[b] - lbs[a])[0];
+  });
+  return t => {
+    const n = normMemo(t.memo);
+    if(!n) return { key: '__cat:' + t.category, label: `${t.category} (메모 없음)` };
+    const k = normToKey[n];
+    return { key: k, label: labelOf[k] };
+  };
+}
+
+/* 공정 사전: 메모 속 단어로 공정을 찾음 (앞에 있는 공정이 우선) */
+const PROCESS_DEFS = [
+  { name: '철거',     words: ['철거', '폐기물', '폐기', '마대', '해체'] },
+  { name: '설비',     words: ['설비', '배관', '수도', '보일러', '분배기', '난방'] },
+  { name: '전기',     words: ['전기', '배선', '콘센트', '스위치', '차단기', '전선'] },
+  { name: '목공',     words: ['목공', '목수', '석고', '합판', '각재', '몰딩', '걸레받이', '천장', '가벽', '루바'] },
+  { name: '타일',     words: ['타일', '줄눈', '압착'] },
+  { name: '욕실',     words: ['욕실', '도기', '양변기', '세면대', '수전', '욕조', '샤워', '방수'] },
+  { name: '주방',     words: ['주방', '싱크', '상판', '후드', '쿡탑', '인덕션'] },
+  { name: '도장',     words: ['도장', '페인트', '퍼티', '젯소', '탄성'] },
+  { name: '도배',     words: ['도배', '벽지', '실크', '합지'] },
+  { name: '필름',     words: ['필름', '시트지'] },
+  { name: '바닥',     words: ['바닥', '마루', '장판', '강마루', '강화마루', '데코타일', '폴리싱', '포세린'] },
+  { name: '창호',     words: ['창호', '샷시', '샤시', '새시', '창문', '중문', '유리'] },
+  { name: '조명',     words: ['조명', '전등', '등기구', '다운라이트', '간접등', 'led'] },
+  { name: '가구',     words: ['가구', '붙박이', '신발장', '수납장', '드레스룸', '도어', '문짝', '방문'] },
+  { name: '금속',     words: ['금속', '철물', '난간', '스텐', '용접'] },
+  { name: '미장',     words: ['미장', '시멘트', '레미탈', '몰탈', '방통'] },
+  { name: '에어컨',   words: ['에어컨', '냉난방기', '시스템에어컨'] },
+  { name: '청소',     words: ['청소', '준공청소', '입주청소'] },
+  { name: '운반·기타', words: ['운반', '퀵', '용달', '화물', '주차', '식대', '식사', '간식', '주유'] }
+];
+function detectProcess(memo){
+  const m = String(memo || '').toLowerCase().replace(/\s/g, '');
+  if(!m) return null;
+  const hit = PROCESS_DEFS.find(p => p.words.some(w => m.includes(w)));
+  return hit ? hit.name : null;
+}
+
+/* 작은 선택칩(메모 추천 등): 누르면 입력칸에 채움 */
+function renderSuggestChips(wrapId, words, inputId){
+  const wrap = document.getElementById(wrapId);
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  words.forEach(w => {
+    const c = document.createElement('div');
+    c.className = 'ms';
+    c.textContent = w;
+    c.onclick = () => { const inp = document.getElementById(inputId); inp.value = w; inp.focus(); };
+    wrap.appendChild(c);
+  });
+}
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function fmt(n){ return '₩' + Math.round(n).toLocaleString('ko-KR'); }
@@ -683,6 +844,7 @@ async function loadData(){
   if(!data.laborStatements) data.laborStatements = [];
   if(!data.workers) data.workers = [];
   data.sites.forEach(s => { if(typeof s.taxInvoice === 'undefined') s.taxInvoice = true; });
+  ensureBizSites();
   document.getElementById('dateInput').value = todayStr();
   document.getElementById('laborDate').value = todayStr();
   dataLoaded = true;
@@ -840,13 +1002,25 @@ function setType(t){
 function renderSiteChips(){
   const wrap = document.getElementById('siteChips');
   wrap.innerHTML = '';
-  data.sites.filter(s=>!s.archived).forEach(s=>{
+  projectSites().filter(s=>!s.archived).forEach(s=>{
     const c = document.createElement('div');
     c.className = 'chip' + (state.siteId===s.id ? ' active':'');
     c.textContent = s.name;
     c.onclick = () => { state.siteId = s.id; renderSiteChips(); updateSaveState(); };
     wrap.appendChild(c);
   });
+  const bizWrap = document.getElementById('bizChips');
+  bizWrap.innerHTML = '';
+  BIZ_DEFS.forEach(def => {
+    const s = bizSite(def.kind);
+    if(!s) return;
+    const c = document.createElement('div');
+    c.className = 'chip biz' + (state.siteId===s.id ? ' active':'');
+    c.textContent = s.name;
+    c.onclick = () => { state.siteId = s.id; renderSiteChips(); updateSaveState(); };
+    bizWrap.appendChild(c);
+  });
+  renderMemoSuggest();
   const add = document.createElement('div');
   add.className = 'chip add';
   add.textContent = '+ 새 현장';
@@ -862,6 +1036,33 @@ function renderSiteChips(){
     });
   };
   wrap.appendChild(add);
+}
+
+/* 메모 추천칩: 고른 곳에서 자주 쓴 메모 → 한 번 눌러 입력 (타자·한영 전환 줄이기) */
+const BIZ_MEMO_DEFAULTS = {
+  ops:   ['주유', '주차', '식대', '사무용품', '통신비', '월세'],
+  sales: ['광고비', '블로그', '인쇄·명함', '미팅 식대', '샘플']
+};
+function renderMemoSuggest(){
+  const s = data.sites.find(x => x.id === state.siteId);
+  const memoInp = document.getElementById('memoInput');
+  let words = [];
+  if(s){
+    const biz = !!s.kind;
+    const since = Date.now() - 120 * 86400000;
+    const freq = {};
+    data.transactions.forEach(t => {
+      if(!t.memo || t.laborStatementId || t.createdAt < since) return;
+      if(biz ? t.siteId !== s.id : isBizId(t.siteId)) return;
+      const m = String(t.memo).trim();
+      freq[m] = (freq[m] || 0) + 1;
+    });
+    words = Object.keys(freq).sort((a, b) => freq[b] - freq[a]).slice(0, 8);
+    const fill = biz ? (BIZ_MEMO_DEFAULTS[s.kind] || []) : PROCESS_DEFS.map(p => p.name);
+    fill.forEach(w => { if(words.length < 8 && !words.includes(w)) words.push(w); });
+    memoInp.placeholder = biz ? '예: 주유, 사무실 월세' : '예: 타일 자재';
+  }
+  renderSuggestChips('memoSuggest', words, 'memoInput');
 }
 
 function renderMethodChips(){
@@ -964,6 +1165,7 @@ async function saveTransaction(){
   document.getElementById('memoInput').value = '';
   updateSaveState();
   renderTodayList();
+  renderMemoSuggest();
 }
 
 function siteName(id){ const s = data.sites.find(x=>x.id===id); return s ? s.name : '(삭제된 현장)'; }
@@ -981,16 +1183,113 @@ function renderTodayList(){
     row.innerHTML = `
       <div class="dot"></div>
       <div class="meta">
-        <div class="site">${siteName(t.siteId)}</div>
-        <div class="desc">${t.method} · ${t.category}${t.memo ? ' · '+t.memo : ''}</div>
+        <div class="site">${escapeHtml(siteName(t.siteId))}</div>
+        <div class="desc">${escapeHtml(t.method)} · ${escapeHtml(t.category)}${t.memo ? ' · '+escapeHtml(t.memo) : ''}</div>
         ${t.evidence ? `<span class="evid ${evidenceClass(t.evidence)}">${t.evidence}</span>` : ''}
-        ${isAdmin() ? `<div class="author">작성 · ${t.authorName || '알수없음'}</div>` : ''}
+        ${isAdmin() ? `<div class="author">작성 · ${escapeHtml(t.authorName || '알수없음')}</div>` : ''}
+        ${editedNote(t)}
       </div>
       <div class="amt">${t.type==='expense'?'-':'+'}${fmt(t.amount)}</div>
+      ${isAdmin() ? `<button class="edit" title="수정" onclick="openTxnEdit('${t.id}')">✎</button>` : ''}
       <button class="del" onclick="deleteTxn('${t.id}')">✕</button>
     `;
     wrap.appendChild(row);
   });
+}
+
+/* ---------- 기록 수정 (관리자 전용) ----------
+   노무비 명세서와 연결된 인건비 기록은 금액·현장 등이 명세서와 맞아야 해서 메모만 수정 가능 */
+function openTxnEdit(id){
+  if(!isAdmin()){ showAlert('기록 수정은 관리자만 할 수 있어요.'); return; }
+  const t = data.transactions.find(x => x.id === id);
+  if(!t) return;
+  const linked = !!t.laborStatementId;
+  const opt = (v, label, sel) => `<option value="${escapeHtml(v)}" ${sel ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+  const siteOpts = () => {
+    const act = projectSites().filter(s => !s.archived), done = projectSites().filter(s => s.archived);
+    const biz = data.sites.filter(s => s.kind);
+    const g = (label, arr) => arr.length ? `<optgroup label="${label}">${arr.map(s => opt(s.id, s.name, s.id === t.siteId)).join('')}</optgroup>` : '';
+    return g('진행 현장', act) + g('운영 · 영업', biz) + g('끝난 현장', done);
+  };
+  const box = document.getElementById('modalBox');
+  box.innerHTML = `
+    <p style="margin-bottom:12px; font-weight:800;">기록 수정</p>
+    ${linked ? `<div class="mfixed">노무비 명세서로 만든 기록이라 금액·현장·날짜는 바꿀 수 없어요. 메모만 수정돼요.</div>` : `
+    <div class="mlabel">구분</div>
+    <select id="edType">${opt('expense', '지출', t.type === 'expense')}${opt('income', '수입', t.type === 'income')}</select>
+    <div class="mlabel">금액</div>
+    <input type="text" inputmode="numeric" id="edAmount" value="${Number(t.amount).toLocaleString('ko-KR')}">
+    <div class="mlabel">현장 / 운영·영업</div>
+    <select id="edSite">${siteOpts()}</select>
+    <div class="mlabel">결제수단</div>
+    <select id="edMethod"></select>
+    <div class="mlabel">항목</div>
+    <select id="edCategory"></select>
+    <div id="edEvidWrap"></div>
+    <div class="mlabel">날짜</div>
+    <input type="date" id="edDate" value="${escapeHtml(t.date)}">`}
+    <div class="mlabel">메모</div>
+    <input type="text" id="edMemo" lang="ko" autocomplete="off" value="${escapeHtml(t.memo || '')}">
+    <div class="mbtn-row">
+      <button class="mbtn-secondary" id="edCancel">취소</button>
+      <button class="mbtn-primary" id="edSave">저장</button>
+    </div>`;
+  document.getElementById('modalOverlay').classList.add('open');
+  document.getElementById('edCancel').onclick = closeModal;
+
+  if(!linked){
+    const $ = id => document.getElementById(id);
+    let evidence = t.evidence;
+    const methods = data.methods.includes(t.method) ? data.methods : [...data.methods, t.method];
+    $('edMethod').innerHTML = methods.map(m => opt(m, m, m === t.method)).join('');
+    const refresh = () => {
+      const type = $('edType').value, method = $('edMethod').value;
+      const cats = type === 'expense' ? data.categories.slice() : ['매출'];
+      const curCat = $('edCategory').value || t.category;
+      if(curCat === t.category && type === t.type && !cats.includes(curCat)) cats.push(curCat);
+      $('edCategory').innerHTML = cats.map(c => opt(c, c, c === curCat)).join('');
+      const w = $('edEvidWrap');
+      if(type !== 'expense'){ evidence = null; w.innerHTML = ''; return; }
+      if(isCardMethod(method)){ evidence = CARD_EVIDENCE; w.innerHTML = `<div class="mlabel">증빙</div><div class="mfixed">카드매출전표 (자동)</div>`; return; }
+      const evs = evidenceOptions(method);
+      if(evidence && !evs.includes(evidence)) evs.push(evidence); // 원천징수 등 기존 값 유지
+      w.innerHTML = `<div class="mlabel">증빙</div><select id="edEvid">${evs.map(e => opt(e, e, e === evidence)).join('')}</select>`;
+      evidence = $('edEvid').value;
+      $('edEvid').onchange = () => { evidence = $('edEvid').value; };
+    };
+    $('edType').onchange = refresh;
+    $('edMethod').onchange = () => { if(!isCardMethod($('edMethod').value) && evidence === CARD_EVIDENCE) evidence = null; refresh(); };
+    $('edAmount').oninput = e => { const v = e.target.value.replace(/[^0-9]/g, ''); e.target.value = v ? Number(v).toLocaleString('ko-KR') : ''; };
+    refresh();
+  }
+
+  document.getElementById('edSave').onclick = async () => {
+    const $ = id => document.getElementById(id);
+    const before = JSON.stringify(t);
+    const memo = $('edMemo').value.trim();
+    if(linked){
+      t.memo = memo;
+    } else {
+      const amount = Number($('edAmount').value.replace(/,/g, ''));
+      if(!amount || amount <= 0){ showAlert('금액을 확인해주세요.'); return; }
+      const type = $('edType').value;
+      t.type = type;
+      t.amount = amount;
+      t.siteId = $('edSite').value;
+      t.method = $('edMethod').value;
+      t.category = $('edCategory').value;
+      t.evidence = type === 'expense' ? ($('edEvid') ? $('edEvid').value : (isCardMethod(t.method) ? CARD_EVIDENCE : t.evidence)) : null;
+      t.date = $('edDate').value || t.date;
+      t.memo = memo;
+    }
+    closeModal();
+    if(JSON.stringify(t) === before) return;
+    t.editedAt = Date.now();
+    t.editedBy = currentUser ? currentUser.name : '';
+    const ok = await persist();
+    if(!ok){ Object.keys(t).forEach(k => delete t[k]); Object.assign(t, JSON.parse(before)); return; }
+    renderAll();
+  };
 }
 
 async function deleteTxn(id){
@@ -1011,7 +1310,8 @@ function computeSiteStats(siteId){
 }
 
 function renderSites(){
-  const activeSites = data.sites.filter(s=>!s.archived);
+  renderBizSection();
+  const activeSites = projectSites().filter(s=>!s.archived);
   document.getElementById('sumSites').textContent = activeSites.length;
   let totalProfit = 0, marginSum = 0, marginCount = 0;
   const cards = document.getElementById('siteCards');
@@ -1032,7 +1332,7 @@ function renderSites(){
   });
 
   // 끝난 현장: 버튼을 눌러야 보임 (합계에는 진행 중인 현장만 포함)
-  const doneSites = data.sites.filter(s=>s.archived);
+  const doneSites = projectSites().filter(s=>s.archived);
   if(doneSites.length){
     const btn = document.createElement('button');
     btn.className = 'done-toggle';
@@ -1088,26 +1388,194 @@ function buildSiteCard(s, st){
       ${vatHtml}
       <div class="site-detail" id="detail-${s.id}"></div>
     `;
-    card.onclick = () => {
+    card.onclick = (e) => {
+      if(e.target.closest('.site-detail')) return; // 펼친 내용 안을 눌렀을 땐 접지 않음
       const det = card.querySelector('.site-detail');
       det.classList.toggle('open');
       if(det.classList.contains('open')){
-        const txns = st.txns.sort((a,b)=>b.createdAt-a.createdAt);
-        det.innerHTML = txns.length ? txns.map(t=>`
-          <div class="txn ${t.type}">
-            <div class="dot"></div>
-            <div class="meta">
-              <div class="site">${t.date} · ${t.method}</div>
-              <div class="desc">${t.category}${t.memo ? ' · '+t.memo : ''}</div>
-              ${t.evidence ? `<span class="evid ${evidenceClass(t.evidence)}">${t.evidence}</span>` : ''}
-              ${isAdmin() ? `<div class="author">작성 · ${t.authorName || '알수없음'}</div>` : ''}
-            </div>
-            <div class="amt">${t.type==='expense'?'-':'+'}${fmt(t.amount)}</div>
-          </div>
-        `).join('') : '<div class="empty">내역 없음</div>';
+        const txns = st.txns.slice().sort((a,b)=>b.createdAt-a.createdAt);
+        det.innerHTML = txns.length
+          ? processBreakdownHtml(txns) + '<div class="panel-sub">전체 내역</div>' + txns.map(txnRowHtml).join('')
+          : '<div class="empty">내역 없음</div>';
       }
     };
     return card;
+}
+
+function editedNote(t){
+  if(!t.editedAt) return '';
+  const d = new Date(t.editedAt);
+  return `<div class="edited">수정됨 · ${d.getMonth()+1}/${d.getDate()}${t.editedBy ? ' ' + escapeHtml(t.editedBy) : ''}</div>`;
+}
+function txnRowHtml(t){
+  return `
+    <div class="txn ${t.type}">
+      <div class="dot"></div>
+      <div class="meta">
+        <div class="site">${t.date} · ${escapeHtml(t.method)}</div>
+        <div class="desc">${escapeHtml(t.category)}${t.memo ? ' · '+escapeHtml(t.memo) : ''}</div>
+        ${t.evidence ? `<span class="evid ${evidenceClass(t.evidence)}">${escapeHtml(t.evidence)}</span>` : ''}
+        ${isAdmin() ? `<div class="author">작성 · ${escapeHtml(t.authorName || '알수없음')}</div>` : ''}
+        ${editedNote(t)}
+      </div>
+      <div class="amt">${t.type==='expense'?'-':'+'}${fmt(t.amount)}</div>
+      ${isAdmin() ? `<button class="edit" title="수정" onclick="event.stopPropagation(); openTxnEdit('${t.id}')">✎</button>` : ''}
+    </div>`;
+}
+
+/* 현장 공정별 지출: 메모에서 공정을 찾아 공정 × 항목(자재비/인건비 등)으로 합산 */
+const CAT_COLORS = ['var(--amber)', 'var(--violet)', 'var(--income)', '#6b8fd6', '#c97a9a', '#8a9099'];
+function processBreakdownHtml(txns){
+  const exp = txns.filter(t => t.type === 'expense');
+  if(!exp.length) return '';
+  const cats = [];
+  const procs = {};
+  exp.forEach(t => {
+    const p = detectProcess(t.memo) || '공정 미지정';
+    const c = t.category || '기타';
+    if(!cats.includes(c)) cats.push(c);
+    if(!procs[p]) procs[p] = { total: 0, byCat: {} };
+    procs[p].total += t.amount;
+    procs[p].byCat[c] = (procs[p].byCat[c] || 0) + t.amount;
+  });
+  // 항목 순서: 관리 탭에 등록된 순서대로
+  cats.sort((a, b) => (data.categories.indexOf(a) + 1 || 99) - (data.categories.indexOf(b) + 1 || 99));
+  const color = c => CAT_COLORS[cats.indexOf(c) % CAT_COLORS.length];
+  const names = Object.keys(procs).sort((a, b) => (a === '공정 미지정') - (b === '공정 미지정') || procs[b].total - procs[a].total);
+  const max = Math.max(...names.map(n => procs[n].total));
+  const legend = cats.map(c => `<span><i style="background:${color(c)}"></i>${escapeHtml(c)}</span>`).join('');
+  const rows = names.map(n => {
+    const p = procs[n];
+    const segs = cats.filter(c => p.byCat[c]).map(c => `<div style="width:${p.byCat[c] / max * 100}%; background:${color(c)}"></div>`).join('');
+    const detail = cats.filter(c => p.byCat[c]).map(c => `<span>${escapeHtml(c)} ${fmt(p.byCat[c])}</span>`).join('');
+    return `<div class="grp">
+      <div class="gtop"><span class="gname">${escapeHtml(n)}</span><span class="gamt">${fmt(p.total)}</span></div>
+      <div class="sbar">${segs}</div>
+      <div class="proc-cats">${detail}</div>
+    </div>`;
+  }).join('');
+  const unset = procs['공정 미지정'];
+  return `<div class="proc-box">
+    <div class="panel-sub" style="margin-top:0;">공정별 지출 <span class="hint-sm">메모 기준</span></div>
+    <div class="proc-legend">${legend}</div>
+    ${rows}
+    ${unset ? `<div class="hint-sm" style="margin:6px 0 4px;">메모에 '타일', '목공' 같은 공정 이름을 적으면 자동으로 묶여요${isAdmin() ? ' (✎로 기존 메모 수정 가능)' : ''}</div>` : ''}
+  </div>`;
+}
+
+/* ---------- 현장현황: 운영 · 영업 ---------- */
+function bizMonthTotals(siteId){
+  const m = {};
+  data.transactions.forEach(t => {
+    if(t.siteId !== siteId || t.type !== 'expense') return;
+    const k = monthKey(t.date);
+    m[k] = (m[k] || 0) + t.amount;
+  });
+  return m;
+}
+function deltaHtml(cur, prev){
+  if(!prev) return '';
+  const d = (cur - prev) / prev * 100;
+  if(Math.abs(d) < 0.5) return ' <span class="delta">±0%</span>';
+  return ` <span class="delta ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'}${Math.abs(d).toFixed(0)}%</span>`;
+}
+function renderBizSection(){
+  const wrap = document.getElementById('bizSection');
+  if(!wrap) return;
+  const thisMonth = monthKey(todayStr());
+  if(!uiState.bizMonth) uiState.bizMonth = thisMonth;
+  const sites = BIZ_DEFS.map(d => bizSite(d.kind)).filter(Boolean);
+  if(!sites.length){ wrap.innerHTML = ''; return; }
+  let html = '<div class="sec-title">현장 외 지출 · 운영 / 영업</div><div class="biz-row">';
+  sites.forEach(s => {
+    const tot = bizMonthTotals(s.id);
+    const cur = tot[thisMonth] || 0, prev = tot[shiftMonth(thisMonth, -1)] || 0;
+    html += `<div class="biz-card ${uiState.bizOpen === s.kind ? 'open' : ''}" onclick="toggleBizPanel('${s.kind}')">
+      <div class="bname"><span>${escapeHtml(s.name)}</span><span style="font-size:11px; color:var(--text-dim);">${uiState.bizOpen === s.kind ? '▴' : '▾'}</span></div>
+      <div class="bamt">${fmt(cur)}</div>
+      <div class="bsub">${monthLabel(thisMonth)} · 지난달 ${fmtShort(prev)}${deltaHtml(cur, prev)}</div>
+    </div>`;
+  });
+  html += '</div>';
+  const open = uiState.bizOpen && bizSite(uiState.bizOpen);
+  if(open) html += bizPanelHtml(open);
+  wrap.innerHTML = html;
+}
+function toggleBizPanel(kind){
+  uiState.bizOpen = uiState.bizOpen === kind ? null : kind;
+  renderBizSection();
+}
+function setBizMonth(ym){
+  if(ym > monthKey(todayStr())) return;
+  uiState.bizMonth = ym;
+  renderBizSection();
+}
+function bizPanelHtml(s){
+  const M = uiState.bizMonth;
+  const all = data.transactions.filter(t => t.siteId === s.id && t.type === 'expense');
+  const groupOf = buildMemoGroups(all);
+  const tot = bizMonthTotals(s.id);
+
+  // 6개월 추이 (선택한 달이 맨 오른쪽)
+  const months = [-5, -4, -3, -2, -1, 0].map(n => shiftMonth(M, n));
+  const maxT = Math.max(1, ...months.map(m => tot[m] || 0));
+  const trend = months.map(m => {
+    const v = tot[m] || 0;
+    return `<div class="col ${m === M ? 'sel' : ''}" onclick="setBizMonth('${m}')">
+      <div class="v">${v ? fmtShort(v) : ''}</div>
+      <div class="bar" style="height:${v / maxT * 78}%"></div>
+      <div class="m">${monthLabel(m)}</div>
+    </div>`;
+  }).join('');
+
+  // 선택한 달의 메모 묶음별 합계 + 지난 3개월과 비교
+  const prevMonths = [1, 2, 3].map(n => shiftMonth(M, -n));
+  const groups = {};
+  all.forEach(t => {
+    const mk = monthKey(t.date);
+    if(mk !== M && !prevMonths.includes(mk)) return;
+    const g = groupOf(t);
+    if(!groups[g.key]) groups[g.key] = { label: g.label, cur: 0, count: 0, prev: {} };
+    if(mk === M){ groups[g.key].cur += t.amount; groups[g.key].count++; }
+    else groups[g.key].prev[mk] = (groups[g.key].prev[mk] || 0) + t.amount;
+  });
+  const list = Object.values(groups).filter(g => g.cur > 0).sort((a, b) => b.cur - a.cur);
+  const gone = Object.values(groups).filter(g => g.cur === 0 && g.prev[prevMonths[0]]);
+  const maxG = Math.max(1, ...list.map(g => g.cur));
+  const curTotal = tot[M] || 0, prevTotal = tot[prevMonths[0]] || 0;
+  const avg3 = prevMonths.reduce((a, m) => a + (tot[m] || 0), 0) / 3;
+
+  const rows = list.length ? list.map(g => {
+    const p1 = g.prev[prevMonths[0]] || 0;
+    const a3 = prevMonths.reduce((a, m) => a + (g.prev[m] || 0), 0) / 3;
+    return `<div class="grp">
+      <div class="gtop"><span class="gname">${escapeHtml(g.label)} <span style="color:var(--text-dim); font-weight:400; font-size:11px;">${g.count}건</span></span><span class="gamt">${fmt(g.cur)}</span></div>
+      <div class="hbar"><div style="width:${g.cur / maxG * 100}%"></div></div>
+      <div class="gcmp">지난달 ${p1 ? fmtShort(p1) : '없음'}${deltaHtml(g.cur, p1)} · 3개월 평균 ${a3 ? fmtShort(a3) : '없음'}</div>
+    </div>`;
+  }).join('') : `<div class="empty">${monthLabel(M)} 지출 기록이 없어요</div>`;
+  const goneHtml = gone.length ? `<div class="gcmp" style="margin-top:8px;">지난달엔 있었는데 이번 달엔 없는 것: ${gone.map(g => `${escapeHtml(g.label)} ${fmtShort(g.prev[prevMonths[0]])}`).join(', ')}</div>` : '';
+
+  const monthTxns = all.filter(t => monthKey(t.date) === M).sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : b.createdAt - a.createdAt));
+  const isNow = M === monthKey(todayStr());
+  return `<div class="biz-panel">
+    <div class="month-nav">
+      <button onclick="setBizMonth('${shiftMonth(M, -1)}')">‹</button>
+      <b>${escapeHtml(s.name)} · ${monthLabel(M, true)}</b>
+      <button onclick="setBizMonth('${shiftMonth(M, 1)}')" ${isNow ? 'disabled style="opacity:.3"' : ''}>›</button>
+    </div>
+    <div class="figures" style="margin:0 0 12px;">
+      <span class="out">합계 ${fmt(curTotal)}</span>
+      <span class="net">지난달 ${fmtShort(prevTotal)}${deltaHtml(curTotal, prevTotal)}</span>
+      <span class="net">3개월 평균 ${fmtShort(avg3)}</span>
+    </div>
+    <div class="panel-sub" style="margin-top:0;">최근 6개월 <span class="hint-sm">막대를 누르면 그 달로 이동</span></div>
+    <div class="trend">${trend}</div>
+    <div class="panel-sub">어디에 썼나 <span class="hint-sm">비슷한 메모끼리 묶음</span></div>
+    ${rows}
+    ${goneHtml}
+    ${monthTxns.length ? `<div class="panel-sub">${monthLabel(M)} 전체 내역</div>` + monthTxns.map(txnRowHtml).join('') : ''}
+  </div>`;
 }
 
 /* ---------- labor / 노무비지급명세서 ---------- */
@@ -1257,13 +1725,14 @@ async function saveWorkerPII(name, pii){
 function renderLaborSiteChips(){
   const wrap = document.getElementById('laborSiteChips');
   wrap.innerHTML = '';
-  data.sites.filter(s=>!s.archived).forEach(s=>{
+  projectSites().filter(s=>!s.archived).forEach(s=>{
     const c = document.createElement('div');
     c.className = 'chip' + (laborState.siteId===s.id ? ' active':'');
     c.textContent = s.name;
     c.onclick = () => { laborState.siteId = s.id; renderLaborSiteChips(); };
     wrap.appendChild(c);
   });
+  renderSuggestChips('laborWorkSuggest', PROCESS_DEFS.slice(0, 10).map(p => p.name), 'laborWork');
 }
 
 function onLaborAmountInput(el){
@@ -1291,6 +1760,7 @@ async function saveLaborStatement(){
   const idNumber = document.getElementById('laborIdNumber').value.trim();
   const phone = document.getElementById('laborPhone').value.trim();
   const address = document.getElementById('laborAddress').value.trim();
+  const laborWork = document.getElementById('laborWork').value.trim();
   const date = document.getElementById('laborDate').value || todayStr();
   const b = updateLaborBreakdown();
 
@@ -1329,7 +1799,7 @@ async function saveLaborStatement(){
     category: '인건비',
     evidence: '원천징수(인건비)',
     date,
-    memo: `노무비지급명세서 · ${name}`,
+    memo: `노무비지급명세서 · ${name}` + (laborWork ? ` · ${laborWork}` : ''),
     authorId: currentUser.id,
     authorName: currentUser.name,
     createdAt: Date.now(),
@@ -1367,6 +1837,7 @@ async function saveLaborStatement(){
   setLaborPIILocked(false);
   laborState.workerId = null;
   document.getElementById('laborGrossAmount').value = '';
+  document.getElementById('laborWork').value = '';
   updateLaborBreakdown();
   renderLaborTab();
   openPrintableStatement(statement, (isAdmin() && !locked) ? pickPII(pii) : null);
@@ -1375,7 +1846,7 @@ async function saveLaborStatement(){
 function renderLedgerSiteChips(){
   const wrap = document.getElementById('ledgerSiteChips');
   wrap.innerHTML = '';
-  const options = [{id:'all', name:'전체'}, ...data.sites.filter(s=>!s.archived)];
+  const options = [{id:'all', name:'전체'}, ...projectSites().filter(s=>!s.archived)];
   options.forEach(s=>{
     const c = document.createElement('div');
     c.className = 'chip' + (ledgerState.siteId===s.id ? ' active':'');
@@ -1574,8 +2045,8 @@ function renderManage(){
       ${isAdmin() ? `<button class="rm-x" title="현장 삭제" onclick="deleteSite('${s.id}')">✕</button>` : ''}`;
     return t;
   };
-  data.sites.filter(s=>!s.archived).forEach(s => siteTags.appendChild(siteTag(s)));
-  const done = data.sites.filter(s=>s.archived);
+  projectSites().filter(s=>!s.archived).forEach(s => siteTags.appendChild(siteTag(s)));
+  const done = projectSites().filter(s=>s.archived);
   if(done.length){
     const btn = document.createElement('button');
     btn.className = 'done-toggle small';
