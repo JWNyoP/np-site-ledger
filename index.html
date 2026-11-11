@@ -262,7 +262,13 @@
   .statement-item .si-left .site{font-size:11px; color:var(--text-dim); margin-top:2px;}
   .statement-item .si-right{text-align:right; flex-shrink:0;}
   .statement-item .si-right .amt{font-family:var(--mono); font-weight:700; font-size:13px;}
-  .statement-item .si-right button{margin-top:5px; background:var(--violet-dim); color:var(--violet); border:none; border-radius:7px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer;}
+  .statement-item .si-right button.si-edit{background:var(--amber-dim); color:var(--amber); margin-right:4px;}
+  .statement-item .si-left .edited{font-size:10px; color:var(--text-dim); margin-top:2px;}
+  .modal-box .bk-mini{font-family:var(--mono); font-size:11.5px; color:var(--text-muted); background:var(--surface-2); border-radius:10px; padding:10px 12px; margin:-4px 0 12px; line-height:1.7;}
+  .modal-box .bk-mini b{color:var(--income);}
+  .modal-box label.mcheck{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-muted); margin:-4px 0 14px;}
+  .modal-box label.mcheck input{width:auto; margin:0;}
+  .statement-item .si-right button{margin-top:5px;background:var(--violet-dim); color:var(--violet); border:none; border-radius:7px; padding:4px 10px; font-size:11px; font-weight:700; cursor:pointer;}
 
   nav.bottom{
     position:fixed; bottom:0; left:0; right:0; max-width:480px; margin:0 auto;
@@ -763,18 +769,21 @@ const PROCESS_DEFS = [
 const PROC_NONE = '공정 미지정';
 const MISC_PROC = '공과잡비';
 // 식비는 메모에 다른 공정 이름이 있어도 무조건 공과잡비 (예: '타일팀 점심')
-const FOOD_WORDS = ['식사', '식대', '식비', '간식', '커피', '음료', '점심', '저녁', '아침', '밥', '도시락', '생수', '다과', '회식', '김밥', '빵'];
+const FOOD_WORDS = ['식사', '식대', '식비', '간식', '커피', '음료', '음료수', '점심', '저녁', '아침', '밥', '도시락', '생수', '다과', '회식', '김밥', '빵',
+  '라면', '국수', '짜장', '짬뽕', '중식', '한식', '분식', '치킨', '피자', '햄버거', '편의점', '카페', '스타벅스', '메가커피', '컴포즈', '이디야', '빽다방', '음식', '야식', '새참','아이스크림', '과자', '떡', '주스'];
 function isFoodText(s){ const m = String(s || '').replace(/\s/g, ''); return FOOD_WORDS.some(w => m.includes(w)); }
 // 자동 분류: 식비 → 공과잡비 / 메모 속 공정 / 공정 없는 자재·기타 → 공과잡비 / 공정 없는 인건비 → 공정 미지정
 function autoProcess(memo, category){
-  if(/가설/.test(String(memo || '').replace(/\s/g, ''))) return '가설'; // 메모에 '가설'이 있으면 무조건 가설
-  if(isFoodText(memo) || isFoodText(category)) return MISC_PROC;
+  if(isFoodText(memo) || isFoodText(category)) return MISC_PROC; // 먹는 것은 무조건 공과잡비
+  if(/가설/.test(String(memo || '').replace(/\s/g, ''))) return '가설'; // 메모에 '가설'이 있으면 가설
   const p = detectProcess(memo);
   if(p) return p;
   return category === '인건비' ? PROC_NONE : MISC_PROC;
 }
-// 수정 창에서 직접 옮긴 공정(t.process)이 있으면 그게 우선
-function txnProcess(t){ return t.process || autoProcess(t.memo, t.category); }
+// 먹는 것(식비·식사·커피·간식 등)은 무엇보다 우선해서 공과잡비 (가설·직접 옮긴 공정보다도 우선)
+function isSikbi(t){ return isFoodText(t.memo) || isFoodText(t.category); }
+// 그 다음은 수정 창에서 직접 옮긴 공정(t.process), 없으면 자동 분류
+function txnProcess(t){ return isSikbi(t) ? MISC_PROC : (t.process || autoProcess(t.memo, t.category)); }
 function detectProcess(memo){
   const m = String(memo || '').toLowerCase().replace(/\s/g, '');
   if(!m) return null;
@@ -1238,7 +1247,8 @@ function openTxnEdit(id){
   const box = document.getElementById('modalBox');
   box.innerHTML = `
     <p style="margin-bottom:12px; font-weight:800;">기록 수정</p>
-    ${linked ? `<div class="mfixed">노무비 명세서로 만든 기록이라 금액·현장·날짜는 바꿀 수 없어요. 메모만 수정돼요.</div>` : `
+    ${linked ? `<div class="mfixed">노무비 명세서로 만든 기록이에요. 금액·현장·날짜·이름은 명세서를 고치면 같이 바뀌어요.</div>
+    <button class="mbtn-secondary mbtn-full" style="margin-bottom:14px;" onclick="closeModal(); openStatementEdit('${escapeHtml(t.laborStatementId)}')">명세서 수정하기</button>` : `
     <div class="mlabel">구분</div>
     <select id="edType">${opt('expense', '지출', t.type === 'expense')}${opt('income', '수입', t.type === 'income')}</select>
     <div class="mlabel">금액</div>
@@ -1271,7 +1281,11 @@ function openTxnEdit(id){
     const siteId = siteSel ? siteSel.value : t.siteId, type = typeSel ? typeSel.value : t.type;
     if(type !== 'expense' || isBizId(siteId)){ w.innerHTML = ''; return; }
     const catSel = document.getElementById('edCategory');
-    const auto = autoProcess(document.getElementById('edMemo').value, (catSel && catSel.value) || t.category);
+    if(isSikbi({ memo: document.getElementById('edMemo').value, category: (catSel && catSel.value) || t.category })){
+      w.innerHTML = `<div class="mlabel">공정</div><div class="mfixed">식비·식사·커피·간식 등 먹는 것은 항상 공과잡비예요</div>`;
+      return;
+    }
+    const auto =autoProcess(document.getElementById('edMemo').value, (catSel && catSel.value) || t.category);
     const names = [...PROCESS_DEFS.map(p => p.name), PROC_NONE];
     if(procChoice && !names.includes(procChoice)) names.push(procChoice);
     w.innerHTML = `<div class="mlabel">공정 (옮기기)</div>
@@ -1883,6 +1897,7 @@ async function saveLaborStatement(){
     id: stId,
     workerName: name,
     workerId: worker.id,
+    work: laborWork,
     idNumber: masked.idNumber,
     phone: masked.phone,
     address: masked.address,
@@ -2027,15 +2042,155 @@ function renderLaborTab(){
     item.innerHTML = `
       <div class="si-left">
         <div class="name">${escapeHtml(st.workerName)}</div>
-        <div class="site">${escapeHtml(siteName(st.siteId))} · ${st.date}</div>
+        <div class="site">${escapeHtml(siteName(st.siteId))} · ${st.date}${statementWork(st) ? ' · ' + escapeHtml(statementWork(st)) : ''}</div>
+        ${editedNote(st)}
       </div>
       <div class="si-right">
         <div class="amt">${fmt(st.gross)}</div>
+        ${isAdmin() ? `<button class="si-edit" onclick="openStatementEdit('${st.id}')">수정</button>` : ''}
         <button onclick="openStatementById('${st.id}')">보기/인쇄</button>
       </div>
     `;
     wrap.appendChild(item);
   });
+}
+
+/* ---------- 노무비 명세서 수정 (관리자 전용) ----------
+   명세서와 연결된 인건비 기록(금액·현장·날짜·메모)도 함께 맞춤.
+   개인정보는 보관함(statementPrivate, 선택 시 workerPrivate)에 저장하고 공용 데이터엔 가린 값만. */
+function laborTax(gross){
+  const incomeTax = Math.round(gross * 0.03), localTax = Math.round(gross * 0.003);
+  return { gross, incomeTax, localTax, withholding: incomeTax + localTax, net: gross - incomeTax - localTax };
+}
+function statementTxn(st){
+  return data.transactions.find(t => t.id === st.txnId) || data.transactions.find(t => t.laborStatementId === st.id);
+}
+// 공정/작업 내용: 새 명세서는 st.work, 예전 것은 기록 메모 끝부분에서 꺼냄
+function statementWork(st){
+  if(typeof st.work === 'string') return st.work;
+  const t = statementTxn(st);
+  const prefix = `노무비지급명세서 · ${st.workerName}`;
+  if(t && t.memo && t.memo.startsWith(prefix + ' · ')) return t.memo.slice(prefix.length + 3);
+  return '';
+}
+async function openStatementEdit(id){
+  if(!isAdmin()){ showAlert('명세서 수정은 관리자만 할 수 있어요.'); return; }
+  const st = data.laborStatements.find(x => x.id === id);
+  if(!st) return;
+  let pii = null;
+  try{ pii = await getStatementPII(st); }catch(e){ console.error(e); }
+  pii = pii || pickPII(st);
+  const opt = (v, label, sel) => `<option value="${escapeHtml(v)}" ${sel ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+  const act = projectSites().filter(s => !s.archived), done = projectSites().filter(s => s.archived);
+  const g = (label, arr) => arr.length ? `<optgroup label="${label}">${arr.map(s => opt(s.id, s.name, s.id === st.siteId)).join('')}</optgroup>` : '';
+  let siteOptions = g('진행 현장', act) + g('끝난 현장', done);
+  if(!data.sites.some(s => s.id === st.siteId)) siteOptions = opt(st.siteId, '(삭제된 현장)', true) + siteOptions;
+  const hasWorker = !!(st.workerId && data.workers.some(w => w.id === st.workerId));
+  const box = document.getElementById('modalBox');
+  box.innerHTML = `
+    <p style="margin-bottom:12px; font-weight:800;">노무비 명세서 수정</p>
+    <div class="mlabel">근로자 / 거래처명</div>
+    <input type="text" id="seName" lang="ko" autocomplete="off" value="${escapeHtml(st.workerName || '')}">
+    <div class="mlabel">주민등록번호</div>
+    <input type="text" id="seId" maxlength="14" value="${escapeHtml(pii.idNumber || '')}">
+    <div class="mlabel">전화번호</div>
+    <input type="text" id="sePhone" inputmode="tel" maxlength="13" value="${escapeHtml(pii.phone || '')}">
+    <div class="mlabel">주소</div>
+    <input type="text" id="seAddr" lang="ko" value="${escapeHtml(pii.address || '')}">
+    ${hasWorker ? `<label class="mcheck"><input type="checkbox" id="seSyncWorker" checked> 근로자 정보에도 반영 (다음 명세서부터 이 정보로)</label>` : ''}
+    <div class="mlabel">현장</div>
+    <select id="seSite">${siteOptions}</select>
+    <div class="mlabel">지급일</div>
+    <input type="date" id="seDate" value="${escapeHtml(st.date || '')}">
+    <div class="mlabel">총 인건비</div>
+    <input type="text" inputmode="numeric" id="seGross" value="${Number(st.gross || 0).toLocaleString('ko-KR')}">
+    <div class="bk-mini" id="seBk"></div>
+    <div class="mlabel">공정 / 작업 내용</div>
+    <input type="text" id="seWork" lang="ko" autocomplete="off" value="${escapeHtml(statementWork(st))}">
+    <div class="mbtn-row">
+      <button class="mbtn-secondary" id="seCancel">취소</button>
+      <button class="mbtn-primary" id="seSave">저장</button>
+    </div>`;
+  document.getElementById('modalOverlay').classList.add('open');
+  const $ = x => document.getElementById(x);
+  const grossOf = () => Number($('seGross').value.replace(/,/g, '')) || 0;
+  const showBk = () => {
+    const b = laborTax(grossOf());
+    $('seBk').innerHTML = `소득세 ${fmt(b.incomeTax)} · 지방소득세 ${fmt(b.localTax)}<br>실지급액 <b>${fmt(b.net)}</b>`;
+  };
+  showBk();
+  $('seGross').oninput = e => { const v = e.target.value.replace(/[^0-9]/g, ''); e.target.value = v ? Number(v).toLocaleString('ko-KR') : ''; showBk(); };
+  $('seId').oninput = e => formatResidentId(e.target);
+  $('sePhone').oninput = e => formatPhone(e.target);
+  // 이름을 바꾸면 다른 사람일 수 있으니 기존 근로자 정보에 덮어쓰지 않음
+  $('seName').oninput = () => {
+    const cb = $('seSyncWorker');
+    if(!cb) return;
+    const same = normName($('seName').value) === normName(st.workerName || '');
+    cb.disabled = !same; if(!same) cb.checked = false;
+  };
+  $('seCancel').onclick = closeModal;
+  $('seSave').onclick = async () => {
+    const name = $('seName').value.trim();
+    const gross = grossOf();
+    if(!name){ showAlert('근로자/거래처명을 입력해주세요.'); return; }
+    if(!gross){ showAlert('총 인건비를 확인해주세요.'); return; }
+    const newPII = { idNumber: $('seId').value.trim(), phone: $('sePhone').value.trim(), address: $('seAddr').value.trim() };
+    const piiChanged = JSON.stringify(newPII) !== JSON.stringify(pickPII(pii));
+    const syncWorker = !!($('seSyncWorker') && $('seSyncWorker').checked);
+    const work = $('seWork').value.trim();
+    const siteId = $('seSite').value, date = $('seDate').value || st.date;
+    const nameChanged = name !== st.workerName;
+    const btn = $('seSave'); btn.disabled = true;
+    const now = Date.now();
+    try{
+      if(piiChanged || nameChanged){
+        await fb.setPrivate(PRIV_STMT, st.id, { ...newPII, updatedAt: now }, true);
+      }
+      if(piiChanged && syncWorker){
+        const w = data.workers.find(x => x.id === st.workerId);
+        await fb.setPrivate(PRIV_WORKER, w.id, { name: w.name, ...newPII, updatedAt: now }, true);
+        Object.assign(w, maskAll(newPII), { piiMoved: true, updatedAt: now });
+      }
+    }catch(e){
+      console.error(e);
+      btn.disabled = false;
+      showAlert('개인정보 저장에 실패했어요. 다시 시도해주세요.');
+      return;
+    }
+    const before = { st: JSON.stringify(st), txn: null };
+    const txn = statementTxn(st);
+    if(txn) before.txn = JSON.stringify(txn);
+    const b = laborTax(gross);
+    if(nameChanged){
+      const other = findWorker(name);
+      st.workerId = other ? other.id : null; // 다른 등록 근로자면 그 사람과 연결
+    }
+    Object.assign(st, {
+      workerName: name, work, siteId, date,
+      gross: b.gross, incomeTax: b.incomeTax, localTax: b.localTax, withholding: b.withholding, netPaid: b.net,
+      ...maskAll(newPII), piiMoved: true,
+      editedAt: now, editedBy: currentUser ? currentUser.name : ''
+    });
+    if(!st.workerId) delete st.workerId;
+    if(txn){
+      Object.assign(txn, {
+        amount: b.gross, siteId, date,
+        memo: `노무비지급명세서 · ${name}` + (work ? ` · ${work}` : ''),
+        editedAt: now, editedBy: currentUser ? currentUser.name : ''
+      });
+    }
+    closeModal();
+    const ok = await persist();
+    if(!ok){
+      const restore = (obj, json) => { Object.keys(obj).forEach(k => delete obj[k]); Object.assign(obj, JSON.parse(json)); };
+      restore(st, before.st);
+      if(txn) restore(txn, before.txn);
+      return;
+    }
+    renderAll();
+    showAlert(`명세서를 수정했어요.${txn ? '\n연결된 인건비 기록도 같이 바뀌었어요.' : ''}\n'보기/인쇄'로 다시 출력할 수 있어요.`);
+  };
 }
 
 function openStatementById(id){
