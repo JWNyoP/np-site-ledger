@@ -211,6 +211,13 @@
   .proc-legend i{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:4px; vertical-align:middle;}
   .sbar{display:flex; height:7px; border-radius:3px; background:var(--surface-3); margin-top:6px; overflow:hidden;}
   .sbar > div{height:100%;}
+  .grp.proc .proc-head{cursor:pointer;}
+  .proc-cnt{color:var(--text-dim); font-weight:400; font-size:11px;}
+  .proc-cnt .chev{display:inline-block; transition:transform .15s;}
+  .grp.proc.open .proc-cnt .chev{transform:rotate(180deg);}
+  .grp.proc .proc-list{display:none; margin:8px 0 2px; padding:2px 10px; background:var(--surface-2); border-radius:10px;}
+  .grp.proc.open .proc-list{display:block;}
+  .grp.proc.open .gname{color:var(--amber);}
   .proc-cats{font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 10px;}
   .txn .edit{background:none; border:none; color:var(--amber); font-size:14px; cursor:pointer; padding:4px 2px;}
   .txn .edited{font-size:10px; color:var(--text-dim); margin-top:2px;}
@@ -664,7 +671,7 @@ let currentUser = null; // {id(구글 uid), name, role, email}
 let state = { type:'expense', siteId:null, method:null, category:null, evidence:null };
 let laborState = { siteId:null, workerId:null };
 let ledgerState = { siteId: 'all' };
-let uiState = { showDoneSites: false, showDoneSitesManage: false, bizOpen: null, bizMonth: null }; // 화면 펼침 상태만 (저장 안 함)
+let uiState = { showDoneSites: false, showDoneSitesManage: false, bizOpen: null, bizMonth: null, openSiteId: null, openProc: null }; // 화면 펼침 상태만 (저장 안 함)
 
 /* ---------- 운영·영업: 현장이 아닌 회사 지출 ----------
    기존 sites 배열에 kind('ops'|'sales')가 붙은 항목으로 저장 → 거래 데이터 구조는 그대로 (siteId로 연결).
@@ -751,6 +758,9 @@ const PROCESS_DEFS = [
   { name: '청소',     words: ['청소', '준공청소', '입주청소'] },
   { name: '운반·기타', words: ['운반', '퀵', '용달', '화물', '주차', '식대', '식사', '간식', '주유'] }
 ];
+// 공정: 수정 창에서 직접 정한 값(t.process)이 있으면 그걸, 없으면 메모에서 찾음
+const PROC_NONE = '공정 미지정';
+function txnProcess(t){ return t.process || detectProcess(t.memo) || PROC_NONE; }
 function detectProcess(memo){
   const m = String(memo || '').toLowerCase().replace(/\s/g, '');
   if(!m) return null;
@@ -1221,6 +1231,7 @@ function openTxnEdit(id){
     <input type="text" inputmode="numeric" id="edAmount" value="${Number(t.amount).toLocaleString('ko-KR')}">
     <div class="mlabel">현장 / 운영·영업</div>
     <select id="edSite">${siteOpts()}</select>
+    <div id="edProcWrap"></div>
     <div class="mlabel">결제수단</div>
     <select id="edMethod"></select>
     <div class="mlabel">항목</div>
@@ -1230,12 +1241,31 @@ function openTxnEdit(id){
     <input type="date" id="edDate" value="${escapeHtml(t.date)}">`}
     <div class="mlabel">메모</div>
     <input type="text" id="edMemo" lang="ko" autocomplete="off" value="${escapeHtml(t.memo || '')}">
+    ${linked ? '<div id="edProcWrap"></div>' : ''}
     <div class="mbtn-row">
       <button class="mbtn-secondary" id="edCancel">취소</button>
       <button class="mbtn-primary" id="edSave">저장</button>
     </div>`;
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('edCancel').onclick = closeModal;
+
+  // 공정 선택 (현장 지출일 때만): 자동(메모 기준) 또는 직접 지정 → 공정별 화면에서 그 공정으로 옮겨짐
+  let procChoice = t.process || '';
+  const renderProc = () => {
+    const w = document.getElementById('edProcWrap');
+    const siteSel = document.getElementById('edSite'), typeSel = document.getElementById('edType');
+    const siteId = siteSel ? siteSel.value : t.siteId, type = typeSel ? typeSel.value : t.type;
+    if(type !== 'expense' || isBizId(siteId)){ w.innerHTML = ''; return; }
+    const auto = detectProcess(document.getElementById('edMemo').value) || PROC_NONE;
+    const names = [...PROCESS_DEFS.map(p => p.name), PROC_NONE];
+    if(procChoice && !names.includes(procChoice)) names.push(procChoice);
+    w.innerHTML = `<div class="mlabel">공정 (옮기기)</div>
+      <select id="edProc">${opt('', `자동 · 메모 기준 (${auto})`, !procChoice)}${names.map(n => opt(n, n, n === procChoice)).join('')}</select>`;
+    document.getElementById('edProc').onchange = e => { procChoice = e.target.value; };
+  };
+  renderProc();
+  document.getElementById('edMemo').addEventListener('input', renderProc);
+  if(document.getElementById('edSite')) document.getElementById('edSite').addEventListener('change', renderProc);
 
   if(!linked){
     const $ = id => document.getElementById(id);
@@ -1257,7 +1287,7 @@ function openTxnEdit(id){
       evidence = $('edEvid').value;
       $('edEvid').onchange = () => { evidence = $('edEvid').value; };
     };
-    $('edType').onchange = refresh;
+    $('edType').onchange = () => { refresh(); renderProc(); };
     $('edMethod').onchange = () => { if(!isCardMethod($('edMethod').value) && evidence === CARD_EVIDENCE) evidence = null; refresh(); };
     $('edAmount').oninput = e => { const v = e.target.value.replace(/[^0-9]/g, ''); e.target.value = v ? Number(v).toLocaleString('ko-KR') : ''; };
     refresh();
@@ -1282,6 +1312,8 @@ function openTxnEdit(id){
       t.date = $('edDate').value || t.date;
       t.memo = memo;
     }
+    if($('edProc') && procChoice) t.process = procChoice;
+    else delete t.process; // 자동이거나 운영·영업/수입이면 공정 지정 없음
     closeModal();
     if(JSON.stringify(t) === before) return;
     t.editedAt = Date.now();
@@ -1388,18 +1420,36 @@ function buildSiteCard(s, st){
       ${vatHtml}
       <div class="site-detail" id="detail-${s.id}"></div>
     `;
+    const det = card.querySelector('.site-detail');
+    const fill = () => {
+      const txns = st.txns.slice().sort((a,b)=>b.createdAt-a.createdAt);
+      det.innerHTML = txns.length
+        ? processBreakdownHtml(txns) + '<div class="panel-sub">전체 내역</div>' + txns.map(txnRowHtml).join('')
+        : '<div class="empty">내역 없음</div>';
+    };
+    // 수정 후 다시 그릴 때 펼쳐 둔 현장·공정을 그대로 유지
+    if(uiState.openSiteId === s.id){ det.classList.add('open'); fill(); }
     card.onclick = (e) => {
       if(e.target.closest('.site-detail')) return; // 펼친 내용 안을 눌렀을 땐 접지 않음
-      const det = card.querySelector('.site-detail');
       det.classList.toggle('open');
       if(det.classList.contains('open')){
-        const txns = st.txns.slice().sort((a,b)=>b.createdAt-a.createdAt);
-        det.innerHTML = txns.length
-          ? processBreakdownHtml(txns) + '<div class="panel-sub">전체 내역</div>' + txns.map(txnRowHtml).join('')
-          : '<div class="empty">내역 없음</div>';
+        // 다른 현장이 열려 있었으면 닫음 (한 번에 하나)
+        document.querySelectorAll('#siteCards .site-detail.open').forEach(d => { if(d !== det){ d.classList.remove('open'); } });
+        if(uiState.openSiteId !== s.id) uiState.openProc = null;
+        uiState.openSiteId = s.id;
+        fill();
+      } else {
+        uiState.openSiteId = null; uiState.openProc = null;
       }
     };
     return card;
+}
+function toggleProc(el, name){
+  const grp = el.closest('.grp');
+  const open = !grp.classList.contains('open');
+  grp.parentElement.querySelectorAll('.grp.open').forEach(g => g.classList.remove('open'));
+  grp.classList.toggle('open', open);
+  uiState.openProc = open ? name : null;
 }
 
 function editedNote(t){
@@ -1431,10 +1481,11 @@ function processBreakdownHtml(txns){
   const cats = [];
   const procs = {};
   exp.forEach(t => {
-    const p = detectProcess(t.memo) || '공정 미지정';
+    const p = txnProcess(t);
     const c = t.category || '기타';
     if(!cats.includes(c)) cats.push(c);
-    if(!procs[p]) procs[p] = { total: 0, byCat: {} };
+    if(!procs[p]) procs[p] = { total: 0, byCat: {}, txns: [] };
+    procs[p].txns.push(t);
     procs[p].total += t.amount;
     procs[p].byCat[c] = (procs[p].byCat[c] || 0) + t.amount;
   });
@@ -1448,18 +1499,22 @@ function processBreakdownHtml(txns){
     const p = procs[n];
     const segs = cats.filter(c => p.byCat[c]).map(c => `<div style="width:${p.byCat[c] / max * 100}%; background:${color(c)}"></div>`).join('');
     const detail = cats.filter(c => p.byCat[c]).map(c => `<span>${escapeHtml(c)} ${fmt(p.byCat[c])}</span>`).join('');
-    return `<div class="grp">
-      <div class="gtop"><span class="gname">${escapeHtml(n)}</span><span class="gamt">${fmt(p.total)}</span></div>
-      <div class="sbar">${segs}</div>
-      <div class="proc-cats">${detail}</div>
+    const open = uiState.openProc === n;
+    return `<div class="grp proc ${open ? 'open' : ''}">
+      <div class="proc-head" onclick="toggleProc(this, '${escapeHtml(n).replace(/'/g, '&#39;')}')">
+        <div class="gtop"><span class="gname">${escapeHtml(n)} <span class="proc-cnt">${p.txns.length}건 <span class="chev">▾</span></span></span><span class="gamt">${fmt(p.total)}</span></div>
+        <div class="sbar">${segs}</div>
+        <div class="proc-cats">${detail}</div>
+      </div>
+      <div class="proc-list">${p.txns.map(txnRowHtml).join('')}</div>
     </div>`;
   }).join('');
   const unset = procs['공정 미지정'];
   return `<div class="proc-box">
-    <div class="panel-sub" style="margin-top:0;">공정별 지출 <span class="hint-sm">메모 기준</span></div>
+    <div class="panel-sub" style="margin-top:0;">공정별 지출 <span class="hint-sm">누르면 상세 내역</span></div>
     <div class="proc-legend">${legend}</div>
     ${rows}
-    ${unset ? `<div class="hint-sm" style="margin:6px 0 4px;">메모에 '타일', '목공' 같은 공정 이름을 적으면 자동으로 묶여요${isAdmin() ? ' (✎로 기존 메모 수정 가능)' : ''}</div>` : ''}
+    ${unset ? `<div class="hint-sm" style="margin:6px 0 4px;">메모에 '타일', '목공' 같은 공정 이름을 적으면 자동으로 묶여요${isAdmin() ? '. ✎를 눌러 공정을 직접 옮길 수도 있어요' : ''}</div>` : ''}
   </div>`;
 }
 
