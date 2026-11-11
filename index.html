@@ -250,6 +250,8 @@
   .attach-tile .al{position:absolute; left:0; right:0; bottom:0; background:rgba(0,0,0,.6); color:#fff; font-size:11px; padding:4px 0; text-align:center;}
   .attach-tile .ax{position:absolute; top:4px; right:4px; width:24px; height:24px; border-radius:50%; background:rgba(0,0,0,.65); color:#fff; font-size:13px; line-height:24px; text-align:center; z-index:2;}
   .attach-tile.busy{opacity:.6; pointer-events:none;}
+  .si-missing{font-size:10.5px; color:var(--expense); margin-top:3px; font-weight:700;}
+  .statement-item .si-right button.si-fix{background:var(--expense); color:#fff; margin-right:4px;}
   .si-files{display:inline-block; font-size:10.5px; color:var(--amber); margin-top:3px;}
   .photo-view img{width:100%; border-radius:10px; display:block; margin:0 0 6px; background:var(--surface-2);}
   .photo-view .pv-label{font-size:12px; font-weight:800; color:var(--text-muted); margin:4px 0 6px;}
@@ -1374,10 +1376,20 @@ function openTxnEdit(id){
 }
 
 async function deleteTxn(id){
-  data.transactions = data.transactions.filter(t=>t.id!==id);
-  await persist();
-  renderTodayList();
-  renderSites();
+  const t = data.transactions.find(x => x.id === id);
+  if(!t) return;
+  // 노무비 명세서와 연결된 인건비 기록을 지우면 명세서만 남고 현장 지출에서 빠짐 → 막음
+  if(t.laborStatementId && data.laborStatements.some(st => st.id === t.laborStatementId)){
+    showAlert('노무비 명세서와 연결된 인건비 기록이라 여기서는 지울 수 없어요.\n금액·현장·날짜는 노무비 탭의 명세서 "수정"에서 바꿔주세요.');
+    return;
+  }
+  showConfirm(`이 기록을 삭제할까요?\n${siteName(t.siteId)} · ${t.category || ''} ${fmt(t.amount)}`, async () => {
+    const before = data.transactions;
+    data.transactions = data.transactions.filter(x => x.id !== id);
+    const ok = await persist();
+    if(!ok) data.transactions = before;
+    renderAll();
+  });
 }
 
 function computeSiteStats(siteId){
@@ -2207,9 +2219,11 @@ function renderLaborTab(){
         <div class="site">${escapeHtml(siteName(st.siteId))} · ${st.date}${statementWork(st) ? ' · ' + escapeHtml(statementWork(st)) : ''}</div>
         ${editedNote(st)}
         ${filesNote(st) ? `<div class="si-files">${filesNote(st)}</div>` : ''}
+        ${!statementTxn(st) ? `<div class="si-missing">⚠ 인건비 기록이 빠져 있어 현장현황에 안 잡혀요</div>` : ''}
       </div>
       <div class="si-right">
         <div class="amt">${fmt(st.gross)}</div>
+        ${isAdmin() && !statementTxn(st) ? `<button class="si-fix" onclick="restoreStatementTxn('${st.id}')">기록 복구</button>` : ''}
         ${isAdmin() && filesNote(st) ? `<button class="si-edit" onclick="openStatementPhotos('${st.id}')">사진</button>` : ''}
         ${isAdmin() ? `<button class="si-edit" onclick="openStatementEdit('${st.id}')">수정</button>` : ''}
         <button onclick="openStatementById('${st.id}')">보기/인쇄</button>
@@ -2228,6 +2242,43 @@ function laborTax(gross){
 }
 function statementTxn(st){
   return data.transactions.find(t => t.id === st.txnId) || data.transactions.find(t => t.laborStatementId === st.id);
+}
+// 명세서는 있는데 연결된 인건비 기록이 없어진 경우 명세서 내용으로 다시 만듦
+function buildStatementTxn(st){
+  const work = typeof st.work === 'string' ? st.work : '';
+  return {
+    id: (st.txnId && !data.transactions.some(t => t.id === st.txnId)) ? st.txnId : uid(),
+    siteId: st.siteId,
+    type: 'expense',
+    amount: st.gross,
+    method: st.method || '계좌이체',
+    category: '인건비',
+    evidence: '원천징수(인건비)',
+    date: st.date,
+    memo: `노무비지급명세서 · ${st.workerName}` + (work ? ` · ${work}` : ''),
+    authorId: st.authorId,
+    authorName: st.authorName,
+    createdAt: Date.now(),
+    restoredAt: Date.now(),
+    laborStatementId: st.id
+  };
+}
+async function restoreStatementTxn(id){
+  if(!isAdmin()){ showAlert('관리자만 할 수 있어요.'); return; }
+  const st = data.laborStatements.find(x => x.id === id);
+  if(!st || statementTxn(st)) { renderAll(); return; }
+  const txn = buildStatementTxn(st);
+  const prevTxnId = st.txnId;
+  data.transactions.push(txn);
+  st.txnId = txn.id;
+  const ok = await persist();
+  if(!ok){
+    data.transactions = data.transactions.filter(t => t.id !== txn.id);
+    st.txnId = prevTxnId;
+    return;
+  }
+  renderAll();
+  showAlert(`${st.workerName}님 인건비 기록(${fmt(st.gross)})을 다시 만들었어요.\n${siteName(st.siteId)} 현장현황에 반영됐어요.`);
 }
 // 공정/작업 내용: 새 명세서는 st.work, 예전 것은 기록 메모 끝부분에서 꺼냄
 function statementWork(st){
@@ -2339,9 +2390,14 @@ async function openStatementEdit(id){
       showAlert('개인정보·사진 저장에 실패했어요. 다시 시도해주세요.');
       return;
     }
-    const before = { st: JSON.stringify(st), txn: null };
-    const txn = statementTxn(st);
+    const before = { st: JSON.stringify(st), txn: null, created: null };
+    let txn = statementTxn(st);
     if(txn) before.txn = JSON.stringify(txn);
+    else {
+      txn = buildStatementTxn(st);
+      data.transactions.push(txn);
+      before.created = txn.id;
+    }
     const b = laborTax(gross);
     if(nameChanged){
       const other = findWorker(name);
@@ -2354,6 +2410,7 @@ async function openStatementEdit(id){
       editedAt: now, editedBy: currentUser ? currentUser.name : ''
     });
     if(!st.workerId) delete st.workerId;
+    st.txnId = txn.id;
     // 사진을 못 불러온 경우엔 기존 첨부 표시를 지우지 않음
     const flags = filesFlag(attachFailed ? { ...(st.files || {}), ...editFiles } : editFiles);
     if(flags) st.files = flags; else delete st.files;
@@ -2369,7 +2426,8 @@ async function openStatementEdit(id){
     if(!ok){
       const restore = (obj, json) => { Object.keys(obj).forEach(k => delete obj[k]); Object.assign(obj, JSON.parse(json)); };
       restore(st, before.st);
-      if(txn) restore(txn, before.txn);
+      if(before.created) data.transactions = data.transactions.filter(t => t.id !== before.created);
+      else if(txn) restore(txn, before.txn);
       return;
     }
     renderAll();
