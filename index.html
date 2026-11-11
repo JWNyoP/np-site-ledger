@@ -241,6 +241,20 @@
   .pending-tag{font-family:var(--mono); font-size:9.5px; padding:2px 6px; border-radius:5px; background:var(--expense-dim); color:var(--expense); font-weight:600; margin-left:4px;}
   .user-row .uid{word-break:break-all;}
   div.hint-sm{font-size:11px; color:var(--text-dim); line-height:1.5;}
+  .attach-row{display:flex; gap:10px;}
+  .attach-tile{flex:1; position:relative; height:104px; border:1.5px dashed var(--line); border-radius:12px; background:var(--surface-2); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--text-muted); font-size:12.5px; font-weight:700; cursor:pointer; overflow:hidden; padding:0;}
+  .attach-tile .ai{font-size:22px; line-height:1;}
+  .attach-tile .as{font-size:10.5px; color:var(--text-dim); font-weight:500;}
+  .attach-tile.has{border-style:solid; border-color:var(--amber);}
+  .attach-tile img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .attach-tile .al{position:absolute; left:0; right:0; bottom:0; background:rgba(0,0,0,.6); color:#fff; font-size:11px; padding:4px 0; text-align:center;}
+  .attach-tile .ax{position:absolute; top:4px; right:4px; width:24px; height:24px; border-radius:50%; background:rgba(0,0,0,.65); color:#fff; font-size:13px; line-height:24px; text-align:center; z-index:2;}
+  .attach-tile.busy{opacity:.6; pointer-events:none;}
+  .si-files{display:inline-block; font-size:10.5px; color:var(--amber); margin-top:3px;}
+  .photo-view img{width:100%; border-radius:10px; display:block; margin:0 0 6px; background:var(--surface-2);}
+  .photo-view .pv-label{font-size:12px; font-weight:800; color:var(--text-muted); margin:4px 0 6px;}
+  .photo-view .pv-none{font-size:12px; color:var(--text-dim); background:var(--surface-2); border-radius:10px; padding:14px; text-align:center; margin-bottom:12px;}
+  .photo-view a{display:block; font-size:11.5px; color:var(--amber); margin-bottom:14px; text-decoration:none;}
   .pii-hint{font-size:11px; color:var(--amber); margin-top:8px; line-height:1.5;}
   input.tf.locked{color:var(--text-muted); background:var(--surface-3);}
   .pii-warn{font-size:12.5px; color:var(--expense); background:var(--expense-dim); border-radius:10px; padding:10px 12px; line-height:1.5;}
@@ -469,6 +483,9 @@
       <input type="text" class="tf" id="laborAddress" placeholder="주소 입력">
       <div class="pii-hint" id="laborPIIHint" style="display:none;">등록된 근로자예요. 개인정보는 가려서 보이고, 수정은 관리자만 할 수 있어요.</div>
 
+      <div class="field-label">신분증 · 통장 사본 (선택) <span class="hint-sm">관리자만 볼 수 있어요</span></div>
+      <div class="attach-row" id="laborAttach"></div>
+
       <div class="field-label">현장</div>
       <div class="chip-row" id="laborSiteChips"></div>
 
@@ -648,6 +665,7 @@
     setPrivate(col, id, value, merge){
       return merge ? setDoc(doc(db, col, id), value, { merge: true }) : setDoc(doc(db, col, id), value);
     },
+    deletePrivate(col, id){ return deleteDoc(doc(db, col, id)); },
     async listPrivate(col){
       const qs = await getDocs(collection(db, col));
       return qs.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -675,7 +693,7 @@ let dataLoaded = false; // 서버에서 실제로 읽어온 뒤에만 저장 허
 let currentUser = null; // {id(구글 uid), name, role, email}
 
 let state = { type:'expense', siteId:null, method:null, category:null, evidence:null };
-let laborState = { siteId:null, workerId:null };
+let laborState = { siteId:null, workerId:null, files:{} };
 let ledgerState = { siteId: 'all' };
 let uiState = { showDoneSites: false, showDoneSitesManage: false, bizOpen: null, bizMonth: null, openSiteId: null, openProc: null }; // 화면 펼침 상태만 (저장 안 함)
 
@@ -1840,6 +1858,134 @@ function updateLaborBreakdown(){
   return { net, gross, withholding, incomeTax, localTax };
 }
 
+/* ---------- 신분증·통장 사본 첨부 ----------
+   사진은 줄여서(JPEG) 관리자 전용 보관함 statementPrivate/{명세서id}__{종류} 문서 하나씩에 저장.
+   (Storage는 유료 요금제 필요 → Firestore 문서 1MB 한도 안으로 압축)
+   공용 데이터 명세서엔 files:{idcard:true, bank:true} 표시만. */
+const ATTACH_KINDS = [
+  { key:'idcard', label:'신분증', icon:'🪪' },
+  { key:'bank',   label:'통장 사본', icon:'🏦' }
+];
+const ATTACH_MAX_CHARS = 850000; // 문서 1MB 한도 여유
+function attachDocId(stId, kind){ return `${stId}__${kind}`; }
+
+function loadImageFile(file){
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('image')); };
+    img.src = url;
+  });
+}
+async function compressImage(file){
+  const img = await loadImageFile(file);
+  let maxSide = 1800, q = 0.82, out = '';
+  for(let i = 0; i < 10; i++){
+    const r = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * r)), h = Math.max(1, Math.round(img.naturalHeight * r));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    out = c.toDataURL('image/jpeg', q);
+    if(out.length <= ATTACH_MAX_CHARS) return out;
+    if(q > 0.6) q -= 0.1; else maxSide = Math.round(maxSide * 0.8);
+  }
+  throw new Error('too-big');
+}
+function pickImageFile(){
+  return new Promise(res => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.style.display = 'none';
+    inp.onchange = () => { const f = inp.files && inp.files[0]; inp.remove(); res(f || null); };
+    document.body.appendChild(inp);
+    inp.click();
+  });
+}
+// 첨부 칸 그리기. files = {idcard: dataURL, ...}; onChange(kind, dataURL|null)
+function renderAttachTiles(wrapId, files, onChange){
+  const wrap = document.getElementById(wrapId);
+  if(!wrap) return;
+  wrap.innerHTML = '';
+  ATTACH_KINDS.forEach(k => {
+    const v = files[k.key];
+    const tile = document.createElement('div');
+    tile.className = 'attach-tile' + (v ? ' has' : '');
+    tile.innerHTML = v
+      ? `<img src="${v}" alt=""><span class="al">${k.label} · 바꾸기</span><span class="ax" title="삭제">✕</span>`
+      : `<span class="ai">${k.icon}</span>${k.label}<span class="as">사진 찍기 / 앨범</span>`;
+    tile.onclick = async e => {
+      if(e.target.classList.contains('ax')){ onChange(k.key, null); return; }
+      const f = await pickImageFile();
+      if(!f) return;
+      tile.classList.add('busy');
+      try{ onChange(k.key, await compressImage(f)); }
+      catch(err){
+        console.error(err);
+        tile.classList.remove('busy');
+        showAlert('사진을 불러오지 못했어요. 다른 사진으로 다시 시도해주세요.');
+      }
+    };
+    wrap.appendChild(tile);
+  });
+}
+function renderLaborAttach(){
+  renderAttachTiles('laborAttach', laborState.files, (kind, v) => {
+    if(v) laborState.files[kind] = v; else delete laborState.files[kind];
+    renderLaborAttach();
+  });
+}
+async function saveAttachments(stId, files){
+  for(const k of ATTACH_KINDS){
+    if(files[k.key]) await fb.setPrivate(PRIV_STMT, attachDocId(stId, k.key), { kind: k.key, image: files[k.key], createdAt: Date.now() });
+  }
+}
+async function loadAttachments(st){
+  const out = {};
+  if(!st || !st.files || !isAdmin()) return out;
+  await Promise.all(ATTACH_KINDS.map(async k => {
+    if(!st.files[k.key]) return;
+    const p = await fb.getPrivate(PRIV_STMT, attachDocId(st.id, k.key));
+    if(p && p.image) out[k.key] = p.image;
+  }));
+  return out;
+}
+function filesFlag(files){
+  const f = {};
+  ATTACH_KINDS.forEach(k => { if(files[k.key]) f[k.key] = true; });
+  return Object.keys(f).length ? f : null;
+}
+function filesNote(st){
+  if(!st.files) return '';
+  const names = ATTACH_KINDS.filter(k => st.files[k.key]).map(k => k.label);
+  return names.length ? `📎 ${names.join(' · ')}` : '';
+}
+async function openStatementPhotos(id){
+  if(!isAdmin()){ showAlert('첨부 사진은 관리자만 볼 수 있어요.'); return; }
+  const st = data.laborStatements.find(x => x.id === id);
+  if(!st) return;
+  const box = document.getElementById('modalBox');
+  box.innerHTML = `<p style="margin-bottom:12px; font-weight:800;">${escapeHtml(st.workerName)} · 첨부 사진</p><div class="photo-view">불러오는 중…</div>`;
+  document.getElementById('modalOverlay').classList.add('open');
+  let files = {}, failed = false;
+  try{ files = await loadAttachments(st); }
+  catch(e){ console.error(e); failed = true; }
+  const view = box.querySelector('.photo-view');
+  if(!view) return;
+  view.innerHTML = failed ? '<div class="pv-none">사진을 불러오지 못했어요.</div>' : ATTACH_KINDS.map(k => files[k.key]
+    ? `<div class="pv-label">${k.label}</div><img src="${files[k.key]}" alt="${k.label}"><a href="${files[k.key]}" download="${escapeHtml(st.workerName)}_${k.label}_${st.date}.jpg">사진 저장하기</a>`
+    : `<div class="pv-label">${k.label}</div><div class="pv-none">첨부 안 됨</div>`).join('');
+  const row = document.createElement('div');
+  row.className = 'mbtn-row';
+  row.innerHTML = `<button class="mbtn-secondary" id="pvEdit">사진 바꾸기</button><button class="mbtn-primary" id="pvClose">닫기</button>`;
+  box.appendChild(row);
+  document.getElementById('pvClose').onclick = closeModal;
+  document.getElementById('pvEdit').onclick = () => openStatementEdit(id);
+}
+
 async function saveLaborStatement(){
   const LABOR_METHOD = '계좌이체';
   const name = document.getElementById('laborName').value.trim();
@@ -1862,6 +2008,8 @@ async function saveLaborStatement(){
   const locked = !isAdmin() && !!findWorker(name);
   const pii = locked ? {} : { idNumber, phone, address };
   const btn = document.getElementById('laborSaveBtn');
+  const btnText = btn.textContent;
+  const files = { ...laborState.files };
   btn.disabled = true;
   let worker;
   try{
@@ -1872,6 +2020,17 @@ async function saveLaborStatement(){
     btn.disabled = false;
     showAlert('근로자 정보를 저장하지 못했어요. 다시 시도해주세요.');
     return;
+  }
+  if(filesFlag(files)){
+    btn.textContent = '사진 올리는 중…';
+    try{ await saveAttachments(stId, files); }
+    catch(e){
+      console.error(e);
+      btn.disabled = false; btn.textContent = btnText;
+      showAlert('신분증·통장 사진을 올리지 못했어요.\n인터넷 연결을 확인하고 다시 저장해주세요.');
+      return;
+    }
+    btn.textContent = btnText;
   }
   btn.disabled = false;
   const masked = locked ? maskedOf(worker) : maskAll(pii);
@@ -1902,6 +2061,7 @@ async function saveLaborStatement(){
     phone: masked.phone,
     address: masked.address,
     piiMoved: true,
+    ...(filesFlag(files) ? { files: filesFlag(files) } : {}),
     siteId: laborState.siteId,
     date,
     method: LABOR_METHOD,
@@ -1925,6 +2085,7 @@ async function saveLaborStatement(){
   laborState.workerId = null;
   document.getElementById('laborGrossAmount').value = '';
   document.getElementById('laborWork').value = '';
+  laborState.files = {};
   updateLaborBreakdown();
   renderLaborTab();
   openPrintableStatement(statement, (isAdmin() && !locked) ? pickPII(pii) : null);
@@ -2032,6 +2193,7 @@ function renderLaborTab(){
   renderLedgerSiteChips();
   renderWorkerDatalist();
   updateLaborBreakdown();
+  renderLaborAttach();
   const wrap = document.getElementById('statementList');
   const list = data.laborStatements.slice().sort((a,b)=>b.createdAt-a.createdAt).slice(0,20);
   if(list.length===0){ wrap.innerHTML = '<div class="empty">아직 생성된 명세서가 없어요</div>'; return; }
@@ -2044,9 +2206,11 @@ function renderLaborTab(){
         <div class="name">${escapeHtml(st.workerName)}</div>
         <div class="site">${escapeHtml(siteName(st.siteId))} · ${st.date}${statementWork(st) ? ' · ' + escapeHtml(statementWork(st)) : ''}</div>
         ${editedNote(st)}
+        ${filesNote(st) ? `<div class="si-files">${filesNote(st)}</div>` : ''}
       </div>
       <div class="si-right">
         <div class="amt">${fmt(st.gross)}</div>
+        ${isAdmin() && filesNote(st) ? `<button class="si-edit" onclick="openStatementPhotos('${st.id}')">사진</button>` : ''}
         ${isAdmin() ? `<button class="si-edit" onclick="openStatementEdit('${st.id}')">수정</button>` : ''}
         <button onclick="openStatementById('${st.id}')">보기/인쇄</button>
       </div>
@@ -2080,6 +2244,9 @@ async function openStatementEdit(id){
   let pii = null;
   try{ pii = await getStatementPII(st); }catch(e){ console.error(e); }
   pii = pii || pickPII(st);
+  let origFiles = {}, attachFailed = false;
+  try{ origFiles = await loadAttachments(st); }catch(e){ console.error(e); attachFailed = true; }
+  const editFiles = { ...origFiles };
   const opt = (v, label, sel) => `<option value="${escapeHtml(v)}" ${sel ? 'selected' : ''}>${escapeHtml(label)}</option>`;
   const act = projectSites().filter(s => !s.archived), done = projectSites().filter(s => s.archived);
   const g = (label, arr) => arr.length ? `<optgroup label="${label}">${arr.map(s => opt(s.id, s.name, s.id === st.siteId)).join('')}</optgroup>` : '';
@@ -2107,6 +2274,8 @@ async function openStatementEdit(id){
     <div class="bk-mini" id="seBk"></div>
     <div class="mlabel">공정 / 작업 내용</div>
     <input type="text" id="seWork" lang="ko" autocomplete="off" value="${escapeHtml(statementWork(st))}">
+    <div class="mlabel">신분증 · 통장 사본</div>
+    <div class="attach-row" id="seAttach" style="margin-bottom:14px;"></div>
     <div class="mbtn-row">
       <button class="mbtn-secondary" id="seCancel">취소</button>
       <button class="mbtn-primary" id="seSave">저장</button>
@@ -2119,6 +2288,11 @@ async function openStatementEdit(id){
     $('seBk').innerHTML = `소득세 ${fmt(b.incomeTax)} · 지방소득세 ${fmt(b.localTax)}<br>실지급액 <b>${fmt(b.net)}</b>`;
   };
   showBk();
+  const drawAttach = () => renderAttachTiles('seAttach', editFiles, (k, v) => {
+    if(v) editFiles[k] = v; else delete editFiles[k];
+    drawAttach();
+  });
+  drawAttach();
   $('seGross').oninput = e => { const v = e.target.value.replace(/[^0-9]/g, ''); e.target.value = v ? Number(v).toLocaleString('ko-KR') : ''; showBk(); };
   $('seId').oninput = e => formatResidentId(e.target);
   $('sePhone').oninput = e => formatPhone(e.target);
@@ -2152,10 +2326,17 @@ async function openStatementEdit(id){
         await fb.setPrivate(PRIV_WORKER, w.id, { name: w.name, ...newPII, updatedAt: now }, true);
         Object.assign(w, maskAll(newPII), { piiMoved: true, updatedAt: now });
       }
+      for(const k of ATTACH_KINDS){
+        const a = editFiles[k.key], o = origFiles[k.key];
+        if(a === o) continue;
+        const docId = attachDocId(st.id, k.key);
+        if(a) await fb.setPrivate(PRIV_STMT, docId, { kind: k.key, image: a, updatedAt: now });
+        else await fb.deletePrivate(PRIV_STMT, docId);
+      }
     }catch(e){
       console.error(e);
       btn.disabled = false;
-      showAlert('개인정보 저장에 실패했어요. 다시 시도해주세요.');
+      showAlert('개인정보·사진 저장에 실패했어요. 다시 시도해주세요.');
       return;
     }
     const before = { st: JSON.stringify(st), txn: null };
@@ -2173,6 +2354,9 @@ async function openStatementEdit(id){
       editedAt: now, editedBy: currentUser ? currentUser.name : ''
     });
     if(!st.workerId) delete st.workerId;
+    // 사진을 못 불러온 경우엔 기존 첨부 표시를 지우지 않음
+    const flags = filesFlag(attachFailed ? { ...(st.files || {}), ...editFiles } : editFiles);
+    if(flags) st.files = flags; else delete st.files;
     if(txn){
       Object.assign(txn, {
         amount: b.gross, siteId, date,
