@@ -738,6 +738,7 @@ function buildMemoGroups(txns){
 
 /* 공정 사전: 메모 속 단어로 공정을 찾음 (앞에 있는 공정이 우선) */
 const PROCESS_DEFS = [
+  { name: '가설',     words: ['가설'] },
   { name: '철거',     words: ['철거', '폐기물', '폐기', '마대', '해체'] },
   { name: '설비',     words: ['설비', '배관', '수도', '보일러', '분배기', '난방'] },
   { name: '전기',     words: ['전기', '배선', '콘센트', '스위치', '차단기', '전선'] },
@@ -756,11 +757,24 @@ const PROCESS_DEFS = [
   { name: '미장',     words: ['미장', '시멘트', '레미탈', '몰탈', '방통'] },
   { name: '에어컨',   words: ['에어컨', '냉난방기', '시스템에어컨'] },
   { name: '청소',     words: ['청소', '준공청소', '입주청소'] },
-  { name: '운반·기타', words: ['운반', '퀵', '용달', '화물', '주차', '식대', '식사', '간식', '주유'] }
+  { name: '공과잡비', words: ['공과잡비', '잡비', '운반', '퀵', '용달', '화물', '주차', '주유', '소모품', '잡자재', '공구', '장갑', '테이프'] }
 ];
 // 공정: 수정 창에서 직접 정한 값(t.process)이 있으면 그걸, 없으면 메모에서 찾음
 const PROC_NONE = '공정 미지정';
-function txnProcess(t){ return t.process || detectProcess(t.memo) || PROC_NONE; }
+const MISC_PROC = '공과잡비';
+// 식비는 메모에 다른 공정 이름이 있어도 무조건 공과잡비 (예: '타일팀 점심')
+const FOOD_WORDS = ['식사', '식대', '식비', '간식', '커피', '음료', '점심', '저녁', '아침', '밥', '도시락', '생수', '다과', '회식', '김밥', '빵'];
+function isFoodText(s){ const m = String(s || '').replace(/\s/g, ''); return FOOD_WORDS.some(w => m.includes(w)); }
+// 자동 분류: 식비 → 공과잡비 / 메모 속 공정 / 공정 없는 자재·기타 → 공과잡비 / 공정 없는 인건비 → 공정 미지정
+function autoProcess(memo, category){
+  if(/가설/.test(String(memo || '').replace(/\s/g, ''))) return '가설'; // 메모에 '가설'이 있으면 무조건 가설
+  if(isFoodText(memo) || isFoodText(category)) return MISC_PROC;
+  const p = detectProcess(memo);
+  if(p) return p;
+  return category === '인건비' ? PROC_NONE : MISC_PROC;
+}
+// 수정 창에서 직접 옮긴 공정(t.process)이 있으면 그게 우선
+function txnProcess(t){ return t.process || autoProcess(t.memo, t.category); }
 function detectProcess(memo){
   const m = String(memo || '').toLowerCase().replace(/\s/g, '');
   if(!m) return null;
@@ -1256,7 +1270,8 @@ function openTxnEdit(id){
     const siteSel = document.getElementById('edSite'), typeSel = document.getElementById('edType');
     const siteId = siteSel ? siteSel.value : t.siteId, type = typeSel ? typeSel.value : t.type;
     if(type !== 'expense' || isBizId(siteId)){ w.innerHTML = ''; return; }
-    const auto = detectProcess(document.getElementById('edMemo').value) || PROC_NONE;
+    const catSel = document.getElementById('edCategory');
+    const auto = autoProcess(document.getElementById('edMemo').value, (catSel && catSel.value) || t.category);
     const names = [...PROCESS_DEFS.map(p => p.name), PROC_NONE];
     if(procChoice && !names.includes(procChoice)) names.push(procChoice);
     w.innerHTML = `<div class="mlabel">공정 (옮기기)</div>
@@ -1291,6 +1306,8 @@ function openTxnEdit(id){
     $('edMethod').onchange = () => { if(!isCardMethod($('edMethod').value) && evidence === CARD_EVIDENCE) evidence = null; refresh(); };
     $('edAmount').oninput = e => { const v = e.target.value.replace(/[^0-9]/g, ''); e.target.value = v ? Number(v).toLocaleString('ko-KR') : ''; };
     refresh();
+    $('edCategory').addEventListener('change', renderProc);
+    renderProc();
   }
 
   document.getElementById('edSave').onclick = async () => {
@@ -1514,7 +1531,7 @@ function processBreakdownHtml(txns){
     <div class="panel-sub" style="margin-top:0;">공정별 지출 <span class="hint-sm">누르면 상세 내역</span></div>
     <div class="proc-legend">${legend}</div>
     ${rows}
-    ${unset ? `<div class="hint-sm" style="margin:6px 0 4px;">메모에 '타일', '목공' 같은 공정 이름을 적으면 자동으로 묶여요${isAdmin() ? '. ✎를 눌러 공정을 직접 옮길 수도 있어요' : ''}</div>` : ''}
+    <div class="hint-sm" style="margin:6px 0 4px;">식비와 공정이 안 적힌 자재·기타는 공과잡비로 묶여요.${unset ? ` 공정 미지정은 공정이 안 적힌 인건비예요${isAdmin() ? ' (✎로 공정 지정)' : ''}.` : ''}</div>
   </div>`;
 }
 
