@@ -145,12 +145,24 @@
   .gauge .tick{position:absolute; top:-3px; bottom:-3px; width:1px; background:rgba(237,239,242,0.18);}
 
   .figures{display:flex; justify-content:space-between; margin-top:10px; font-family:var(--mono); font-size:12px;}
+  .figures{gap:6px;}
+  .figures span{display:flex; flex-direction:column; min-width:0;}
+  .figures span:nth-child(2){text-align:center;}
+  .figures span:last-child{text-align:right;}
+  .figures small{font-family:var(--sans); font-size:10px; color:var(--text-dim); margin-bottom:1px;}
   .figures .in{color:var(--income);}
   .figures .out{color:var(--expense);}
   .figures .net{color:var(--text-muted);}
 
   .vat-line{margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); font-family:var(--mono); font-size:11px; color:var(--text-dim); display:flex; flex-direction:column; gap:3px;}
   .vat-line b{color:var(--violet); font-weight:700;}
+  .supply-tag{font-size:10px; color:var(--violet); margin-top:10px; font-weight:700;}
+  .supply-tag + .figures{margin-top:4px;}
+  .cash-flow{margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); font-family:var(--mono); font-size:11.5px; color:var(--text-muted);}
+  .cash-flow .cf-row{display:flex; justify-content:space-between; padding:2px 0;}
+  .cash-flow .cf-sub{font-size:10px; color:var(--text-dim); text-align:right; margin:-1px 0 3px;}
+  .cash-flow .cf-row.total{border-top:1px solid var(--line); margin-top:4px; padding-top:6px; color:var(--text); font-weight:800; font-size:12.5px;}
+  .txn .amt .sup{font-size:10px; color:var(--violet); font-weight:500; text-align:right; margin-top:2px;}
 
   .site-detail{margin-top:12px; padding-top:12px; border-top:1px solid var(--line); display:none;}
   .site-detail.open{display:block;}
@@ -457,7 +469,7 @@
     <section class="tab" id="tab-sites">
       <div class="summary-bar">
         <div class="stat"><div class="num" id="sumSites">0</div><div class="lbl">진행 현장</div></div>
-        <div class="stat"><div class="num" id="sumProfit">₩0</div><div class="lbl">총 수익</div></div>
+        <div class="stat"><div class="num" id="sumProfit">₩0</div><div class="lbl">총 이윤 (부가세 제외)</div></div>
         <div class="stat"><div class="num" id="sumMargin">0%</div><div class="lbl">평균 수익률</div></div>
       </div>
       <div id="bizSection"></div>
@@ -1392,14 +1404,32 @@ async function deleteTxn(id){
   });
 }
 
+/* 공급가(부가세 뺀 금액) 기준 계산 — 계산서 발행 현장만.
+   수입: 받은 돈 ÷ 1.1 / 지출: 공제 가능 증빙(계산서·카드·현금영수증)만 ÷ 1.1, 인건비·현금(미발행)은 그대로.
+   실제 남은 돈 = 받은 돈 − 나간 돈 − 낼 부가세(매출부가세 − 매입세액) = 공급가 수입 − 공급가 지출 */
+function siteOfTxn(t){ return data.sites.find(x => x.id === t.siteId); }
+function supplyOf(t, site){
+  site = site || siteOfTxn(t);
+  if(!site || !site.taxInvoice) return t.amount;
+  if(t.type === 'income') return Math.round(t.amount / 1.1);
+  return isDeductibleEvidence(t.evidence) ? Math.round(t.amount / 1.1) : t.amount;
+}
 function computeSiteStats(siteId){
+  const site = data.sites.find(x => x.id === siteId);
   const txns = data.transactions.filter(t=>t.siteId===siteId);
-  const income = txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const expense = txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const profit = income - expense;
+  const inc = txns.filter(t=>t.type==='income'), exp = txns.filter(t=>t.type==='expense');
+  const sum = (arr, f) => arr.reduce((a, t) => a + f(t), 0);
+  const grossIncome = sum(inc, t => t.amount);           // 실제 받은 돈 (부가세 포함)
+  const grossExpense = sum(exp, t => t.amount);          // 실제 나간 돈
+  const income = sum(inc, t => supplyOf(t, site));       // 공급가 수입
+  const expense = sum(exp, t => supplyOf(t, site));      // 공급가 지출
+  const outVat = grossIncome - income;                   // 매출부가세
+  const inVat = grossExpense - expense;                  // 매입세액(공제)
+  const vatDue = outVat - inVat;                         // 낼 부가세 (음수면 환급)
+  const profit = income - expense;                       // = 받은 돈 − 나간 돈 − 낼 부가세
   const margin = income > 0 ? (profit/income*100) : (expense>0 ? -100 : 0);
-  const deductibleExpense = txns.filter(t=>t.type==='expense' && isDeductibleEvidence(t.evidence)).reduce((s,t)=>s+t.amount,0);
-  return { income, expense, profit, margin, txns, deductibleExpense };
+  const deductibleExpense = sum(exp.filter(t => isDeductibleEvidence(t.evidence)), t => t.amount);
+  return { income, expense, profit, margin, txns, deductibleExpense, grossIncome, grossExpense, outVat, inVat, vatDue, site };
 }
 
 function renderSites(){
@@ -1450,15 +1480,16 @@ function buildSiteCard(s, st){
 
     let vatHtml = '';
     if(s.taxInvoice){
-      const supply = st.income / 1.1;
-      const vat = st.income - supply;
-      const deductibleVat = st.deductibleExpense / 1.1 * 0.1;
-      vatHtml = `<div class="vat-line">
-        <span>공급가액 ${fmt(supply)} · 매출부가세 <b>${fmt(vat)}</b></span>
-        <span>매입세액공제 가능 지출 ${fmt(st.deductibleExpense)} (부가세 약 <b>${fmt(deductibleVat)}</b>)</span>
+      const due = st.vatDue;
+      vatHtml = `<div class="cash-flow">
+        <div class="cf-row"><span>받은 돈 (부가세 포함)</span><span>${fmt(st.grossIncome)}</span></div>
+        <div class="cf-row"><span>− 나간 돈 (실제 결제)</span><span>${fmt(st.grossExpense)}</span></div>
+        <div class="cf-row"><span>− ${due >= 0 ? '낼 부가세' : '돌려받을 부가세'}</span><span>${fmt(Math.abs(due))}</span></div>
+        <div class="cf-sub">매출부가세 ${fmt(st.outVat)} − 매입세액공제 ${fmt(st.inVat)}</div>
+        <div class="cf-row total"><span>= 실제 남은 돈</span><span>${fmt(st.profit)}</span></div>
       </div>`;
     } else {
-      vatHtml = `<div class="vat-line"><span>계산서 미발행 현장 (부가세 없음)</span></div>`;
+      vatHtml = `<div class="vat-line"><span>계산서 미발행 현장 · 부가세 없음 (금액 그대로)</span></div>`;
     }
 
     const card = document.createElement('div');
@@ -1473,10 +1504,11 @@ function buildSiteCard(s, st){
         <div class="margin-tag ${marginClass}">${st.income===0 && st.expense===0 ? '기록없음' : (st.margin>=0?'+':'') + st.margin.toFixed(1)+'%'}</div>
       </div>
       <div class="gauge"><div class="fill" style="width:${pct}%"></div><div class="tick" style="left:70%"></div></div>
+      ${s.taxInvoice ? '<div class="supply-tag">공급가 기준 (부가세 제외)</div>' : ''}
       <div class="figures">
-        <span class="in">수입 ${fmt(st.income)}</span>
-        <span class="out">지출 ${fmt(st.expense)}</span>
-        <span class="net">순익 ${fmt(st.profit)}</span>
+        <span class="in"><small>${s.taxInvoice ? '매출' : '수입'}</small>${fmt(st.income)}</span>
+        <span class="out"><small>지출</small>${fmt(st.expense)}</span>
+        <span class="net"><small>이윤</small>${fmt(st.profit)}</span>
       </div>
       ${vatHtml}
       <div class="site-detail" id="detail-${s.id}"></div>
@@ -1485,7 +1517,7 @@ function buildSiteCard(s, st){
     const fill = () => {
       const txns = st.txns.slice().sort((a,b)=>b.createdAt-a.createdAt);
       det.innerHTML = txns.length
-        ? processBreakdownHtml(txns) + '<div class="panel-sub">전체 내역</div>' + txns.map(txnRowHtml).join('')
+        ? processBreakdownHtml(txns, s) + '<div class="panel-sub">전체 내역</div>' + txns.map(t => txnRowHtml(t, s)).join('')
         : '<div class="empty">내역 없음</div>';
     };
     // 수정 후 다시 그릴 때 펼쳐 둔 현장·공정을 그대로 유지
@@ -1518,7 +1550,9 @@ function editedNote(t){
   const d = new Date(t.editedAt);
   return `<div class="edited">수정됨 · ${d.getMonth()+1}/${d.getDate()}${t.editedBy ? ' ' + escapeHtml(t.editedBy) : ''}</div>`;
 }
-function txnRowHtml(t){
+function txnRowHtml(t, site){
+  const sup = site ? supplyOf(t, site) : t.amount;
+  const supNote = sup !== t.amount ? `<div class="sup">공급가 ${fmt(sup)}</div>` : '';
   return `
     <div class="txn ${t.type}">
       <div class="dot"></div>
@@ -1529,14 +1563,15 @@ function txnRowHtml(t){
         ${isAdmin() ? `<div class="author">작성 · ${escapeHtml(t.authorName || '알수없음')}</div>` : ''}
         ${editedNote(t)}
       </div>
-      <div class="amt">${t.type==='expense'?'-':'+'}${fmt(t.amount)}</div>
+      <div class="amt">${t.type==='expense'?'-':'+'}${fmt(t.amount)}${supNote}</div>
       ${isAdmin() ? `<button class="edit" title="수정" onclick="event.stopPropagation(); openTxnEdit('${t.id}')">✎</button>` : ''}
     </div>`;
 }
 
 /* 현장 공정별 지출: 메모에서 공정을 찾아 공정 × 항목(자재비/인건비 등)으로 합산 */
 const CAT_COLORS = ['var(--amber)', 'var(--violet)', 'var(--income)', '#6b8fd6', '#c97a9a', '#8a9099'];
-function processBreakdownHtml(txns){
+function processBreakdownHtml(txns, site){
+  const val = t => site ? supplyOf(t, site) : t.amount;
   const exp = txns.filter(t => t.type === 'expense');
   if(!exp.length) return '';
   const cats = [];
@@ -1547,8 +1582,8 @@ function processBreakdownHtml(txns){
     if(!cats.includes(c)) cats.push(c);
     if(!procs[p]) procs[p] = { total: 0, byCat: {}, txns: [] };
     procs[p].txns.push(t);
-    procs[p].total += t.amount;
-    procs[p].byCat[c] = (procs[p].byCat[c] || 0) + t.amount;
+    procs[p].total += val(t);
+    procs[p].byCat[c] = (procs[p].byCat[c] || 0) + val(t);
   });
   // 항목 순서: 관리 탭에 등록된 순서대로
   cats.sort((a, b) => (data.categories.indexOf(a) + 1 || 99) - (data.categories.indexOf(b) + 1 || 99));
@@ -1567,12 +1602,12 @@ function processBreakdownHtml(txns){
         <div class="sbar">${segs}</div>
         <div class="proc-cats">${detail}</div>
       </div>
-      <div class="proc-list">${p.txns.map(txnRowHtml).join('')}</div>
+      <div class="proc-list">${p.txns.map(t => txnRowHtml(t, site)).join('')}</div>
     </div>`;
   }).join('');
   const unset = procs['공정 미지정'];
   return `<div class="proc-box">
-    <div class="panel-sub" style="margin-top:0;">공정별 지출 <span class="hint-sm">누르면 상세 내역</span></div>
+    <div class="panel-sub" style="margin-top:0;">공정별 지출${site && site.taxInvoice ? ' (공급가)' : ''} <span class="hint-sm">누르면 상세 내역</span></div>
     <div class="proc-legend">${legend}</div>
     ${rows}
     <div class="hint-sm" style="margin:6px 0 4px;">식비와 공정이 안 적힌 자재·기타는 공과잡비로 묶여요.${unset ? ` 공정 미지정은 공정이 안 적힌 인건비예요${isAdmin() ? ' (✎로 공정 지정)' : ''}.` : ''}</div>
