@@ -1827,10 +1827,12 @@ async function onLaborNameInput(el){
   const prev = laborState.workerId;
   laborState.workerId = w ? w.id : null;
   if(!w){
-    if(prev){ clearLaborPII(); setLaborPIILocked(false); }
+    if(prev){ clearLaborPII(); setLaborPIILocked(false); clearAutoLaborFiles(); }
     return;
   }
   if(prev === w.id) return;
+  if(prev) clearAutoLaborFiles();
+  fillLaborFilesFromWorker(w);
   if(isAdmin()){
     setLaborPIILocked(false);
     let p = null;
@@ -1959,11 +1961,14 @@ function renderAttachTiles(wrapId, files, onChange){
   wrap.innerHTML = '';
   ATTACH_KINDS.forEach(k => {
     const v = files[k.key];
+    const img = typeof v === 'string' ? v : (v && v.img);
     const tile = document.createElement('div');
     tile.className = 'attach-tile' + (v ? ' has' : '');
-    tile.innerHTML = v
-      ? `<img src="${v}" alt=""><span class="al">${k.label} · 바꾸기</span><span class="ax" title="삭제">✕</span>`
-      : `<span class="ai">${k.icon}</span>${k.label}<span class="as">사진 찍기 / 앨범</span>`;
+    tile.innerHTML = img
+      ? `<img src="${img}" alt=""><span class="al">${k.label}${v && v.ref ? ' · 지난번 사진' : ''} · 바꾸기</span><span class="ax" title="삭제">✕</span>`
+      : v
+        ? `<span class="ai">✅</span>${k.label}<span class="as">지난번 사진 사용 · 바꾸기</span><span class="ax" title="삭제">✕</span>`
+        : `<span class="ai">${k.icon}</span>${k.label}<span class="as">사진 찍기 / 앨범</span>`;
     tile.onclick = async e => {
       if(e.target.classList.contains('ax')){ onChange(k.key, null); return; }
       const f = await pickImageFile();
@@ -1985,20 +1990,60 @@ function renderLaborAttach(){
     renderLaborAttach();
   });
 }
+// 새로 찍은 사진(문자열)만 올림. 지난번 사진 재사용({ref})은 올리지 않고 st.fileRefs로 가리킴
 async function saveAttachments(stId, files){
   for(const k of ATTACH_KINDS){
-    if(files[k.key]) await fb.setPrivate(PRIV_STMT, attachDocId(stId, k.key), { kind: k.key, image: files[k.key], createdAt: Date.now() });
+    if(typeof files[k.key] === 'string') await fb.setPrivate(PRIV_STMT, attachDocId(stId, k.key), { kind: k.key, image: files[k.key], createdAt: Date.now() });
   }
+}
+function fileRefsOf(files){
+  const r = {};
+  ATTACH_KINDS.forEach(k => { const v = files[k.key]; if(v && typeof v === 'object' && v.ref) r[k.key] = v.ref; });
+  return Object.keys(r).length ? r : null;
+}
+// 사진이 실제로 저장된 문서 id (다른 명세서 사진을 재사용하면 그 문서)
+function attachSrc(st, kind){ return (st.fileRefs && st.fileRefs[kind]) || attachDocId(st.id, kind); }
+function attachDocInUse(docId, exceptStId){
+  return data.laborStatements.some(o => o.id !== exceptStId && o.files &&
+    ATTACH_KINDS.some(k => o.files[k.key] && attachSrc(o, k.key) === docId));
 }
 async function loadAttachments(st){
   const out = {};
   if(!st || !st.files || !isAdmin()) return out;
   await Promise.all(ATTACH_KINDS.map(async k => {
     if(!st.files[k.key]) return;
-    const p = await fb.getPrivate(PRIV_STMT, attachDocId(st.id, k.key));
+    const p = await fb.getPrivate(PRIV_STMT, attachSrc(st, k.key));
     if(p && p.image) out[k.key] = p.image;
   }));
   return out;
+}
+// 같은 근로자의 가장 최근 명세서 사진을 종류별로 찾아 재사용 값으로 채움
+async function fillLaborFilesFromWorker(w){
+  const key = normName(w.name);
+  const mine = data.laborStatements
+    .filter(st => st.files && (st.workerId === w.id || normName(st.workerName || '') === key))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const found = {};
+  ATTACH_KINDS.forEach(k => {
+    const st = mine.find(x => x.files[k.key]);
+    if(st && !laborState.files[k.key]) found[k.key] = { ref: attachSrc(st, k.key), img: null, auto: true };
+  });
+  if(!Object.keys(found).length) return;
+  Object.assign(laborState.files, found);
+  renderLaborAttach();
+  if(!isAdmin()) return; // 일반 사용자는 사진을 볼 수 없음 → "지난번 사진 사용" 표시만
+  await Promise.all(Object.keys(found).map(async kind => {
+    try{
+      const p = await fb.getPrivate(PRIV_STMT, found[kind].ref);
+      if(p && p.image && laborState.files[kind] === found[kind]) found[kind].img = p.image;
+      else if(!p && laborState.files[kind] === found[kind]) delete laborState.files[kind];
+    }catch(e){ console.error(e); }
+  }));
+  if(laborState.workerId === w.id) renderLaborAttach();
+}
+function clearAutoLaborFiles(){
+  Object.keys(laborState.files).forEach(k => { const v = laborState.files[k]; if(v && typeof v === 'object' && v.auto) delete laborState.files[k]; });
+  renderLaborAttach();
 }
 function filesFlag(files){
   const f = {};
@@ -2068,7 +2113,7 @@ async function saveLaborStatement(){
     showAlert('근로자 정보를 저장하지 못했어요. 다시 시도해주세요.');
     return;
   }
-  if(filesFlag(files)){
+  if(Object.values(files).some(v => typeof v === 'string')){
     btn.textContent = '사진 올리는 중…';
     try{ await saveAttachments(stId, files); }
     catch(e){
@@ -2109,6 +2154,7 @@ async function saveLaborStatement(){
     address: masked.address,
     piiMoved: true,
     ...(filesFlag(files) ? { files: filesFlag(files) } : {}),
+    ...(fileRefsOf(files) ? { fileRefs: fileRefsOf(files) } : {}),
     siteId: laborState.siteId,
     date,
     method: LABOR_METHOD,
@@ -2403,6 +2449,7 @@ async function openStatementEdit(id){
     const nameChanged = name !== st.workerName;
     const btn = $('seSave'); btn.disabled = true;
     const now = Date.now();
+    const newRefs = { ...(st.fileRefs || {}) };
     try{
       if(piiChanged || nameChanged){
         await fb.setPrivate(PRIV_STMT, st.id, { ...newPII, updatedAt: now }, true);
@@ -2415,9 +2462,17 @@ async function openStatementEdit(id){
       for(const k of ATTACH_KINDS){
         const a = editFiles[k.key], o = origFiles[k.key];
         if(a === o) continue;
-        const docId = attachDocId(st.id, k.key);
-        if(a) await fb.setPrivate(PRIV_STMT, docId, { kind: k.key, image: a, updatedAt: now });
-        else await fb.deletePrivate(PRIV_STMT, docId);
+        const src = attachSrc(st, k.key);
+        const own = attachDocId(st.id, k.key);
+        if(a){
+          // 다른 명세서가 이 사진을 같이 쓰고 있으면 새 문서에 저장
+          const target = attachDocInUse(own, st.id) ? attachDocId(st.id + '_' + now.toString(36), k.key) : own;
+          await fb.setPrivate(PRIV_STMT, target, { kind: k.key, image: a, updatedAt: now });
+          if(target === own) delete newRefs[k.key]; else newRefs[k.key] = target;
+        } else {
+          if(src.startsWith(st.id + '_') && !attachDocInUse(src, st.id)) await fb.deletePrivate(PRIV_STMT, src);
+          delete newRefs[k.key];
+        }
       }
     }catch(e){
       console.error(e);
@@ -2449,6 +2504,8 @@ async function openStatementEdit(id){
     // 사진을 못 불러온 경우엔 기존 첨부 표시를 지우지 않음
     const flags = filesFlag(attachFailed ? { ...(st.files || {}), ...editFiles } : editFiles);
     if(flags) st.files = flags; else delete st.files;
+    Object.keys(newRefs).forEach(k => { if(!flags || !flags[k]) delete newRefs[k]; });
+    if(Object.keys(newRefs).length) st.fileRefs = newRefs; else delete st.fileRefs;
     if(txn){
       Object.assign(txn, {
         amount: b.gross, siteId, date,
